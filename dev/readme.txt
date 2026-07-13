@@ -7,6 +7,7 @@ Auto Game:
 - in städten gibts z.b.:
 	- casino
 	- shop für kisten mit teilen
+	- tankstelle (ohne funktion)
 	- Werkstatt: dort kann man neue teile für ingame geld kaufen und an sein auto ausrüsten
 		diese Teile können ein auto z.b. schneller machen oder einfach nur visuell sein
 	- Aufträge: dabei erfüllt man verschiedene Aufgaben für neues ingame geld. z.b. ladung von a nach b bringen, auto anmalen/waschen und dabei einfach bisschen rüberwischen

@@ -1,5 +1,5 @@
 import * as PIXI from "pixi.js";
-
+import * as APP from "./app2.js";
 
 let ready = false;
 let city_data = null;
@@ -26,9 +26,12 @@ export function createMapScene(app) {
     c.eventMode = "static";
 
     // ===== HINTERGRUND =====
-    const background = PIXI.Sprite.from("assets/landscape.png");
-    background.width = app.renderer.width;
-    background.height = app.renderer.height;
+
+    const  tex = PIXI.Texture.from("assets/landscape.png");
+    tex.source.scaleMode = "nearest";
+    const background = new PIXI.Sprite(tex);
+    background.width = APP.getWidth();
+    background.height = APP.getHeight();
     c.addChild(background);
 
     for (const obj of city_data.cities) {
@@ -36,8 +39,8 @@ export function createMapScene(app) {
         tex.source.scaleMode = "nearest";
         const img = new PIXI.Sprite(tex);
 
-        img.x = obj.position[0] + 0.5 * tex.width;
-        img.y = obj.position[1] + 0.5 * tex.height;
+        img.x = obj.position[0] + 0.5 * img.width;
+        img.y = obj.position[1] + 0.5 * img.height;
 
         img.anchor.set(0.5);
         img.eventMode = "static";
@@ -273,8 +276,9 @@ export function createGotoCityScene(app, city_obj) {
     );
 
     travelButton.on("pointertap", () => {
-        console.log("Losfahren");
-        // deine Funktion hier
+        popScene(app);
+
+        pushScene(app, createDriveScene(app, city_obj));
     });
 
 
@@ -296,6 +300,146 @@ export function createGotoCityScene(app, city_obj) {
     return c;
 }
 
+
+function createDriveScene(app, city_obj) {
+
+    const cur_city = city_data.cities.find(c => c.id === APP.state.current_city_id);
+
+    const dist = Math.sqrt(
+        Math.pow(city_obj.position[0] - cur_city.position[0], 2) +
+        Math.pow(city_obj.position[1] - cur_city.position[1], 2)
+    ) * 10;
+
+    console.log("Distance to city " + city_obj.id + ": " + dist.toFixed(2) + "m");
+
+
+    const c = new PIXI.Container();
+    c.label = "drive_scene";
+    c.eventMode = "static";
+
+    // ===== HINTERGRUND =====
+    const side = new PIXI.Graphics();
+    side.rect(0, 0, app.screen.width, app.screen.height);
+    side.fill(0x2e9e4f);
+    c.addChild(side);
+    
+
+    // ===== STRAẞE =====
+    const road = new PIXI.Graphics();
+    
+    // Straßen-Fläche
+    const roadTop = 0;
+    const roadBottom = app.screen.height;
+    const roadWidthTop = app.screen.width * 0.2;
+    const roadWidthBottom = app.screen.width * 0.75;
+    
+    road.moveTo(
+        (app.screen.width - roadWidthTop) / 2,
+        roadTop
+    );
+    road.lineTo(
+        (app.screen.width + roadWidthTop) / 2,
+        roadTop
+    );
+    road.lineTo(
+        (app.screen.width + roadWidthBottom) / 2,
+        roadBottom
+    );
+    road.lineTo(
+        (app.screen.width - roadWidthBottom) / 2,
+        roadBottom
+    );
+    road.fill(0x444444);
+    c.addChild(road);
+
+    // =========================================================================
+    // FAHRBAHNMARKIERUNGEN - Sanfter Übergang
+    // =========================================================================
+
+    const numLanes = 3;
+    const numSegments = 20;
+
+    for (let i = 1; i < numLanes; i++) {
+        const t = i / numLanes;
+        
+        const xTop = (app.screen.width - roadWidthTop) / 2 + roadWidthTop * t;
+        const xBottom = (app.screen.width - roadWidthBottom) / 2 + roadWidthBottom * t;
+        
+        const line = new PIXI.Graphics();
+        line.moveTo(xTop, roadTop);
+        line.lineTo(xBottom, roadBottom);
+
+        
+        line.stroke({ 
+            color: 0xffffff, 
+            width: 7,
+            alpha: 0.9
+        });
+        
+        c.addChild(line);
+    }
+
+    // ===== SEITENSTREIFEN (Optional) =====
+    // Äußere Linien durchgehend
+    for (let side = 0; side < 2; side++) {
+        const t = side === 0 ? 0.02 : 0.98; // leicht innerhalb
+        
+        const xTop = (app.screen.width - roadWidthTop) / 2 + roadWidthTop * t;
+        const xBottom = (app.screen.width - roadWidthBottom) / 2 + roadWidthBottom * t;
+        
+        const edgeLine = new PIXI.Graphics();
+        edgeLine.moveTo(xTop, roadTop);
+        edgeLine.lineTo(xBottom, roadBottom);
+        edgeLine.stroke({ 
+            color: 0xffffff, 
+            width: 7,
+            alpha: 0.8
+        });
+        c.addChild(edgeLine);
+    }
+
+    // ===== STRAẞENRAND (Links/Rechts) =====
+    const roadEdge = new PIXI.Graphics();
+    
+    // Linker Rand
+    roadEdge.moveTo(
+        (app.screen.width - roadWidthTop) / 2,
+        roadTop
+    );
+    roadEdge.lineTo(
+        (app.screen.width - roadWidthBottom) / 2,
+        roadBottom
+    );
+    roadEdge.stroke({ color: 0x666666, width: 3 });
+    c.addChild(roadEdge);
+    
+    // Rechter Rand
+    const roadEdgeRight = new PIXI.Graphics();
+    roadEdgeRight.moveTo(
+        (app.screen.width + roadWidthTop) / 2,
+        roadTop
+    );
+    roadEdgeRight.lineTo(
+        (app.screen.width + roadWidthBottom) / 2,
+        roadBottom
+    );
+    roadEdgeRight.stroke({ color: 0x666666, width: 3 });
+    c.addChild(roadEdgeRight);
+
+    // ===== ESC ZURÜCK =====
+    const keyHandler = (e) => {
+        if (e.key === "Escape") {
+            popScene(appRef);
+        }
+    };
+    window.addEventListener("keydown", keyHandler);
+    
+    c.on("removed", () => {
+        window.removeEventListener("keydown", keyHandler);
+    });
+
+    return c;
+}
 
 const sceneStack = [];
 

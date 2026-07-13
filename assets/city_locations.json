@@ -64,7 +64,7 @@
             "id": 10,
             "position": [434, 156],
             "texture": "city2.png",
-            "type": "casino"
+            "type": "none"
         },
         {
             "id": 11,
