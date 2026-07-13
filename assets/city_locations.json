@@ -1,0 +1,94 @@
+{
+    "cities": [
+        {
+            "id": 0,
+            "position": [9, 51],
+            "texture": "city1.png",
+            "type": "none"
+        },
+        {
+            "id": 1,
+            "position": [156, 96],
+            "texture": "city1.png",
+            "type": "car_repair"
+        },
+        {
+            "id": 2,
+            "position": [35, 156],
+            "texture": "city1.png",
+            "type": "none"
+        },
+        {
+            "id": 3,
+            "position": [28, 230],
+            "texture": "city1.png",
+            "type": "none"
+        },
+        {
+            "id": 4,
+            "position": [304, 82],
+            "texture": "city1.png",
+            "type": "none"
+        },
+        {
+            "id": 5,
+            "position": [350, 206],
+            "texture": "city1.png",
+            "type": "car_repair"
+        },
+        {
+            "id": 6,
+            "position": [313, 16],
+            "texture": "city2.png",
+            "type": "car_repair"
+        },
+        {
+            "id": 7,
+            "position": [218, 56],
+            "texture": "city2.png",
+            "type": "none"
+        },
+        {
+            "id": 8,
+            "position": [259, 133],
+            "texture": "city2.png",
+            "type": "none"
+        },
+        {
+            "id": 9,
+            "position": [134, 219],
+            "texture": "city2.png",
+            "type": "casino"
+        },
+        {
+            "id": 10,
+            "position": [434, 156],
+            "texture": "city2.png",
+            "type": "casino"
+        },
+        {
+            "id": 11,
+            "position": [127, 5],
+            "texture": "city3.png",
+            "type": "shop"
+        },
+        {
+            "id": 12,
+            "position": [38, 102],
+            "texture": "city3.png",
+            "type": "none"
+        },
+        {
+            "id": 13,
+            "position": [192, 158],
+            "texture": "city3.png",
+            "type": "none"
+        },
+        {
+            "id": 14,
+            "position": [327, 154],
+            "texture": "city3.png",
+            "type": "none"
+        }
+    ]
+}

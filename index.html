@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game</title>
+    <style>
+        *, body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+        html,body{
+            margin:0; padding:0; height:100%;
+            background:#0a0a0a; display:flex; align-items:center; justify-content:center;
+            font-family: 'Courier New', monospace;
+        }
+        #gameHolder{
+            display:flex; flex-direction:column; align-items:center; gap:8px;
+        }
+        canvas{
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+            border: 4px solid #333;
+            box-shadow: 0 0 30px rgba(0,0,0,0.6);
+        }
+        #hint{
+            color:#888; font-size:12px; max-width:960px; text-align:center;
+        }
+    </style>
+
+</head>
+<body>
+    <div id="gameHolder">
+        <div id="game"></div>
+        <div id="hint">A/D oder Pfeiltasten: Spur wechseln &nbsp;|&nbsp; W/S: Beschleunigen/Bremsen &nbsp;|&nbsp; Ziel: Strecke schaffen ohne Unfall &amp; ohne zu oft geblitzt zu werden</div>
+    </div>
+
+
+    <script type="module" src="app2.js"></script>
+</body>
+</html>
