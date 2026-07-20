@@ -1,0 +1,288 @@
+import * as PIXI from "pixi.js";
+import * as APP from "../main.js";
+import { SceneStack } from "../Utils/SceneStack.js";
+import { DriveScene } from "../Road/DriveScene.js";
+
+export class MapScene extends PIXI.Container {
+
+    constructor(app) {
+        super();
+
+        this.app = app;
+        this.city_obj = APP.city_data;
+
+        this.label = "MapScene";
+        this.eventMode = "static";
+    
+        // Background
+        const tex = PIXI.Texture.from("assets/landscape.png");
+        tex.source.scaleMode = "nearest";
+        const background = new PIXI.Sprite(tex);
+        background.width = APP.getWidth();
+        background.height = APP.getHeight();
+        this.addChild(background);
+    
+        //put cities to the spots written in the city_data
+        for (const obj of this.city_obj.cities) {
+            const tex2 = PIXI.Texture.from("/assets/" + obj.texture);
+            tex2.source.scaleMode = "nearest";
+            const img = new PIXI.Sprite(tex2);
+    
+            img.x = obj.position[0] + 0.5 * img.width;
+            img.y = obj.position[1] + 0.5 * img.height;
+    
+            img.anchor.set(0.5);
+            img.eventMode = "static";
+            img.cursor = "pointer";
+    
+            img.on("pointerover", () => {
+                img.scale.set(1.2);
+                shadow.alpha = 1;
+            });
+    
+    
+            img.on("pointerout", () => {
+                img.scale.set(1);
+                shadow.alpha = 0;
+            });
+    
+            img.on("pointertap", () => {
+                this.handleCityClick();
+            });
+    
+            const shadow = new PIXI.Graphics();
+    
+            shadow.circle(0, 0, 80);
+            shadow.fill({
+                color: 0x000000,
+                alpha: 0.25
+            });
+    
+            shadow.position = img.position.clone();
+            shadow.alpha = 0;
+    
+            this.addChildAt(shadow, 0);
+    
+            this.addChild(img);
+        }
+    }
+
+    handleCityClick() {
+        const scene = this.createGotoCityScene();
+        SceneStack.pushScene(this.app, scene, false);
+    }
+
+
+    createGotoCityScene() {
+        const c = new PIXI.Container();
+        c.label = "GotoCityScene";
+        c.eventMode = "static";
+
+        const onKeyDown = (e) => {
+            if (e.key === "Escape") {
+                SceneStack.popScene(this.app);
+            }
+        };
+
+        window.addEventListener("keydown", onKeyDown);
+        c.on("removed", () => {
+            window.removeEventListener("keydown", onKeyDown);
+        });
+
+        const bg = new PIXI.Graphics();
+        
+        const width = this.app.screen.width * 0.8;
+        const height = this.app.screen.height * 0.8;
+        
+        const x = (this.app.screen.width - width) / 2;
+        const y = (this.app.screen.height - height) / 2;
+
+        const blocker = new PIXI.Graphics();
+
+        blocker.rect(
+            0,
+            0,
+            this.app.screen.width,
+            this.app.screen.height
+        );
+
+        blocker.fill({
+            color: 0x000000,
+            alpha: 0
+        });
+
+        blocker.eventMode = "static";
+
+        c.addChild(blocker);
+
+        const panel = new PIXI.Container();
+        panel.position.set(x, y);
+
+        blocker.on("pointertap", (e) => {
+            e.stopPropagation();
+
+            // Scene schließen
+            SceneStack.popScene(this.app);
+        });
+        
+        bg.roundRect(
+            0,
+            0,
+            width,
+            height,
+            10
+        );
+        
+        bg.fill({
+            color: 0xffffff,
+            alpha: 0.8
+        });
+
+        panel.addChild(bg);
+        panel.eventMode = "static";
+
+        panel.on("pointertap", (e) => {
+            e.stopPropagation();
+        });
+
+        
+        const title = new PIXI.Text({
+            text: "Zur Stadt " + this.city_obj.type +" (" + this.city_obj.id + ") reisen?",
+            style: {
+                fontSize: 16,
+                fill: 0x000000
+            }
+        });
+        
+        title.anchor.set(0.5, 0);
+        title.x = width / 2;
+        title.y = 20;
+        
+        panel.addChild(title);
+
+        const distanceText = new PIXI.Text({
+            text: "Distanz: 1200m",
+            style: {
+                fontSize: 12,
+                fill: 0x000000
+            }
+        });
+
+        distanceText.anchor.set(0.5);
+        distanceText.position.set(
+            width / 2,
+            height * 0.25
+        );
+
+        panel.addChild(distanceText);
+
+        function createButton(text, x) {
+            const button = new PIXI.Container();
+
+            const buttonWidth = width * 0.2;
+            const buttonHeight = width * 0.1;
+
+            const bg = new PIXI.Graphics();
+
+            bg.roundRect(
+                0,
+                0,
+                buttonWidth,
+                buttonHeight,
+                15
+            );
+
+            bg.fill({
+                color: 0x3498db,
+                alpha: 1
+            });
+
+            button.addChild(bg);
+
+
+            const label = new PIXI.Text({
+                text,
+                style: {
+                    fontSize: buttonHeight * 0.35,
+                    fill: 0xffffff
+                }
+            });
+
+            label.anchor.set(0.5);
+
+            label.position.set(
+                buttonWidth / 2,
+                buttonHeight / 2
+            );
+
+            button.addChild(label);
+
+
+            button.pivot.set(
+                buttonWidth / 2,
+                buttonHeight / 2
+            );
+
+            button.position.set(
+                x + buttonWidth / 2,
+                height - buttonHeight / 2 - height * 0.05
+            );
+
+
+            button.eventMode = "static";
+            button.cursor = "pointer";
+
+
+            button.on("pointerover", () => {
+                button.scale.set(1.05);
+            });
+
+            button.on("pointerout", () => {
+                button.scale.set(1);
+            });
+
+
+            return button;
+        }
+
+        const buttonWidth = width * 0.2;
+
+        const gap = width * 0.05;
+
+        const totalWidth = buttonWidth * 2 + gap;
+
+        const startX = (width - totalWidth) / 2;
+
+
+        const travelButton = createButton(
+            "Losfahren",
+            startX
+        );
+
+        travelButton.on("pointertap", () => {
+            SceneStack.popScene(this.app);
+
+            const driveScene = new DriveScene(this.app);
+            SceneStack.pushScene(this.app, driveScene);
+        });
+
+
+        const backButton = createButton(
+            "Zurück",
+            startX + buttonWidth + gap
+        );
+
+        backButton.on("pointertap", () => {
+            SceneStack.popScene(this.app);
+        });
+
+
+        panel.addChild(travelButton);
+        panel.addChild(backButton);
+
+        c.addChild(panel);
+
+        return c;
+    }
+
+}
