@@ -262,7 +262,7 @@ export class MapScene extends PIXI.Container {
         travelButton.on("pointertap", () => {
             SceneStack.popScene(this.app);
 
-            const driveScene = new DriveScene(this.app);
+            const driveScene = new DriveScene(this.app, 2400);
             SceneStack.pushScene(this.app, driveScene);
         });
 

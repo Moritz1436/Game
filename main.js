@@ -10,7 +10,8 @@ window.DEBUG = {
     enabled: false,
     showMeshes: false,
     meshes: 0,
-    triangles: 0
+    triangles: 0,
+    speedHack: false
 }
 
 export function getWidth() {
@@ -79,7 +80,9 @@ async function initializeRender() {
         "assets/landscape.png",
 
         //DriveScene StreetSegment texture
-        "assets/street.png"
+        "assets/street.png",
+        //DriveScene background Mountains
+        "assets/mountains.png"
     ]);
 
 }
@@ -87,8 +90,8 @@ async function initializeRender() {
 
 function setupDebug(app) {
     const debugToggle = document.getElementById("debugToggle");
-
     const showMeshesToggle = document.getElementById("showMeshesToggle");
+    const speedToggle = document.getElementById("speedToggle");
 
     debugToggle.checked = false;
     debugToggle.addEventListener("change", (e) => {
@@ -98,6 +101,15 @@ function setupDebug(app) {
     showMeshesToggle.checked = false;
     showMeshesToggle.addEventListener("change", (e) => {
         window.DEBUG.showMeshes = e.target.checked;
+    });
+
+    speedToggle.checked = false;
+    speedToggle.addEventListener("change", (e) => {
+        window.DEBUG.speedHack = e.target.checked;
+        if (SceneStack.getTopSceneName() === "DriveScene"){
+            if (e.target.checked) SceneStack.getTopScene().speedZ *= 10;
+            else SceneStack.getTopScene().speedZ /= 10;
+        }
     });
 
     const fpsCounter = document.getElementById("fpsCounter");

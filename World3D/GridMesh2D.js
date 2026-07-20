@@ -24,8 +24,8 @@ export class GridMesh2D extends Object3D {
         this.texLengthX = texCover2d.x;
         this.texLengthZ = texCover2d.y;
 
-        this.debugGraphics = new PIXI.Graphics();
-        debugLayer.addChild(this.debugGraphics);
+        this.debugGraphics = null;
+        this.debugLayer = debugLayer;
 
         this.rawVerticies = [];
         this.uvs = [];
@@ -52,14 +52,14 @@ export class GridMesh2D extends Object3D {
                 if (this.texLengthX === -1) {
                     u = x / cols;
                 } else {
-                    u = localX / this.texLengthX;
+                    u = (pos3d.x + localX) / this.texLengthX;
                 }
 
 
                 if (this.texLengthZ === -1) {
                     v = z / rows;
                 } else {
-                    v = localZ / this.texLengthZ;
+                    v = (pos3d.z + localZ) / this.texLengthZ;
                 }
 
                 this.uvs.push(u, v);
@@ -97,6 +97,8 @@ export class GridMesh2D extends Object3D {
         window.DEBUG.meshes++;
         window.DEBUG.triangles += this.indices.length / 3;
 
+        this.geometryPositionBuffer = this.geometry.getBuffer("aPosition");
+
         this.update(app,cam);
     }
 
@@ -104,8 +106,14 @@ export class GridMesh2D extends Object3D {
         window.DEBUG.meshes--;
         window.DEBUG.triangles -= this.indices.length / 3;
         this.mesh.destroy();
+        this.geometry.destroy();
         layer.removeChild(this.mesh);
-        layer.removeChild(this.debugGraphics);
+
+        if (this.debugGraphics) {
+            this.debugGraphics.destroy();
+            this.debugLayer.removeChild(this.debugGraphics);
+            this.debugGraphics = null;
+        }
     }
 
     update(app, cam) {
@@ -138,64 +146,84 @@ export class GridMesh2D extends Object3D {
         this.mesh.visible = visible;
 
         //  DEBUG DRAW BORDER ARROUND MESHES
-        this.debugGraphics.clear();
         if (window.DEBUG.enabled && window.DEBUG.showMeshes && visible) {
 
-            const cornerIndices = [
-                0,
-                this.rows,
-                this.cols * (this.rows + 1),
-                this.cols * (this.rows + 1) + this.rows
-            ];
-            const corners = [];
-
-            for (const index of cornerIndices) {
-                const local = this.rawVerticies[index];
-
-                const world = {
-                    x: this.pos3d.x + local.x,
-                    y: this.pos3d.y + local.y,
-                    z: this.pos3d.z + local.z
-                };
-
-                const p = cam.project(world, w, h);
-
-                if (p) {
-                    corners.push(p);
-                }
+            if (!this.debugGraphics) {
+                this.debugGraphics = new PIXI.Graphics();
+                this.debugLayer.addChild(this.debugGraphics);
             }
 
-            if (corners.length === 4) {
-                this.debugGraphics.moveTo(
-                    corners[0].x,
-                    corners[0].y
-                );
+            this.debugGraphics.clear();
 
-                this.debugGraphics.lineTo(
-                    corners[1].x,
-                    corners[1].y
-                );
-
-                this.debugGraphics.lineTo(
-                    corners[3].x,
-                    corners[3].y
-                );
-
-                this.debugGraphics.lineTo(
-                    corners[2].x,
-                    corners[2].y
-                );
-
-                this.debugGraphics.closePath();
-
-                this.debugGraphics.stroke({
-                    color: 0xff0000,
-                    width: 2
-                });
+            this.renderDebugOutlines(cam, w, h);
+        }
+        else {
+            if (this.debugGraphics) {
+                this.debugGraphics.clear();
+                if (!window.DEBUG.showMeshes) {
+                    this.debugGraphics.destroy();
+                    this.debugGraphics = null;
+                }
             }
         }
 
-        this.geometry.getBuffer("aPosition").update();
+        this.geometryPositionBuffer.update();
+    }
+
+
+    renderDebugOutlines(cam, w, h) {
+        const cornerIndices = [
+            0,
+            this.rows,
+            this.cols * (this.rows + 1),
+            this.cols * (this.rows + 1) + this.rows
+        ];
+        const corners = [];
+
+        for (const index of cornerIndices) {
+            const local = this.rawVerticies[index];
+
+            const world = {
+                x: this.pos3d.x + local.x,
+                y: this.pos3d.y + local.y,
+                z: this.pos3d.z + local.z
+            };
+
+            const p = cam.project(world, w, h);
+
+            if (p) {
+                corners.push(p);
+            }
+        }
+
+        if (corners.length === 4) {
+            this.debugGraphics.moveTo(
+                corners[0].x,
+                corners[0].y
+            );
+
+            this.debugGraphics.lineTo(
+                corners[1].x,
+                corners[1].y
+            );
+
+            this.debugGraphics.lineTo(
+                corners[3].x,
+                corners[3].y
+            );
+
+            this.debugGraphics.lineTo(
+                corners[2].x,
+                corners[2].y
+            );
+
+            this.debugGraphics.closePath();
+
+            this.debugGraphics.stroke({
+                color: 0xff0000,
+                width: 2
+            });
+        }
     }
 
 }

@@ -1,7 +1,8 @@
 import { GroundChunk } from "./GroundChunk.js";
 
 
-
+//Manages the Ground Chunks, only holds chunks visible to the user, 
+// new ones get created and old chunks will be freed
 export class GroundManager {
 
     constructor(app, cam, layer, debugLayer, pos3d, worldSize2d) {
@@ -11,13 +12,14 @@ export class GroundManager {
         this.layer = layer;
         this.debugLayer = debugLayer;
 
-        this.chunkSize = 50;
+        this.chunkSize = 100;
         this.chunks = new Map();
-
+        
+        this.pos3d = pos3d;
         this.worldSize2d = worldSize2d;
         // how many chunks will be rendered
         this.renderDistanceX = 15;
-        this.renderDistanceZ = 80;
+        this.renderDistanceZ = cam.far / this.chunkSize;
 
 
         // chunk limits precompute
@@ -28,6 +30,7 @@ export class GroundManager {
         this.maxChunkX = Math.floor(
             (worldSize2d.x * 0.5) / this.chunkSize
         );
+
 
         this.minChunkZ = Math.floor(
             (-worldSize2d.y * 0.5) / this.chunkSize
@@ -43,8 +46,11 @@ export class GroundManager {
         const camZ = this.cam.pos3d.z;
 
         // current chunk
-        const chunkX = Math.floor(camX / this.chunkSize);
-        const chunkZ = Math.floor(camZ / this.chunkSize);
+        const localX = camX - this.pos3d.x;
+        const localZ = camZ - this.pos3d.z;
+
+        const chunkX = Math.floor(localX / this.chunkSize);
+        const chunkZ = Math.floor(localZ / this.chunkSize);
 
         const neededChunks = new Set();
 
@@ -64,8 +70,8 @@ export class GroundManager {
                     continue;
                 }
 
-                const chunkWorldZ = cz * this.chunkSize;
-                //chunk is behind camera
+                const chunkWorldZ = this.pos3d.z + cz * this.chunkSize;
+                //chunk is behind cam
                 if (chunkWorldZ > this.cam.pos3d.z) {
                     continue;
                 }
@@ -101,9 +107,9 @@ export class GroundManager {
     createChunk(x, z) {
 
         const pos = {
-            x: x * this.chunkSize + this.chunkSize * 0.5,
-            y: 0,
-            z: z * this.chunkSize + this.chunkSize * 0.5
+            x: this.pos3d.x + x * this.chunkSize + this.chunkSize * 0.5,
+            y: this.pos3d.y,
+            z: this.pos3d.z + z * this.chunkSize + this.chunkSize * 0.5
         };
 
         const size = {

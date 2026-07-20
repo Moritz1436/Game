@@ -13,11 +13,11 @@ export class RoadSegment {
         this.layer = layer;
 
         // world units for 1 texture until repeat
-        const texLengthZ = 100;
+        const texLengthZ = 500;
 
         //how many segments per mesh/roadsegment (segment is subdevided in the geo with more verticies)
         const verticalSegments = 20;
-        const horizontalSegments = 100;
+        const horizontalSegments = 10;
 
         this.texture = PIXI.Assets.get("assets/street.png");
         this.texture.source.addressMode = "repeat";

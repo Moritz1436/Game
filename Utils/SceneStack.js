@@ -25,9 +25,31 @@ export class SceneStack {
     }
 
     static popScene(app) {
+        if (this.sceneStack.length === 0) {
+            return null;
+        }
         const oldScene = this.sceneStack.pop();
 
         app.stage.removeChild(oldScene);
+        return oldScene;
+    }
+
+    static getTopScene() {
+        if (this.sceneStack.length === 0) {
+            return null;
+        }
+
+        return this.sceneStack[this.sceneStack.length - 1];
+    }
+
+    static getTopSceneName() {
+        const scene = this.getTopScene();
+
+        if (!scene) {
+            return null;
+        }
+
+        return scene.label;
     }
 
 }
