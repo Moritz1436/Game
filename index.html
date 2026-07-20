@@ -27,6 +27,26 @@
         #hint{
             color:#888; font-size:12px; max-width:960px; text-align:center;
         }
+        #debugPanel {
+            position: fixed;
+            bottom: 10px;
+            left: 10px;
+
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+
+            background: rgba(0,0,0,0.7);
+            color: #00ff00;
+
+            padding: 8px 12px;
+            border: 1px solid #333;
+
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+
+            z-index: 9999;
+        }
     </style>
 
 </head>
@@ -35,6 +55,30 @@
         <div id="game"></div>
         <div id="hint">A/D oder Pfeiltasten: Spur wechseln &nbsp;|&nbsp; W/S: Beschleunigen/Bremsen &nbsp;|&nbsp; Ziel: Strecke schaffen ohne Unfall &amp; ohne zu oft geblitzt zu werden</div>
     </div>
+
+    <div id="debugPanel">
+        <label>
+            DEBUG:
+            <input type="checkbox" id="debugToggle">
+        </label>
+
+        <label>
+            SHOW MESHES:
+            <input type="checkbox" id="showMeshesToggle">
+        </label>
+
+        <div id="fpsCounter">
+            FPS: 0
+        </div>
+
+        <div id="meshCounter">
+            MESHES: 0
+        </div>
+
+        <div id="triangleCounter">
+            TRIANGLES: 0
+        </div>
+</div>
 
     <script type="module" src="main.js"></script>
 </body>

@@ -5,10 +5,12 @@ import { GridMesh2D } from "../World3D/GridMesh2D.js"
 //1 road piece which is made out of 1 Mesh
 export class RoadSegment {
 
-    ///@param roadRenderer - belonging Scene
+    ///@param scene - belonging Scene
+    ///@param layer - object layer for the mesh
     ///@param pos3d - position of the RoadSegment (center)
     ///@param size2d - size of the RoadSegment (.x and .y) y -> z
-    constructor(roadRenderer, pos3d, size2d) {
+    constructor(app, cam, layer, debugLayer, pos3d, size2d) {
+        this.layer = layer;
 
         // world units for 1 texture until repeat
         const texLengthZ = 100;
@@ -21,8 +23,10 @@ export class RoadSegment {
         this.texture.source.addressMode = "repeat";
 
         this.gridMesh2d = new GridMesh2D(
-            roadRenderer.app, 
-            roadRenderer.camera, 
+            app,
+            cam,
+            layer,
+            debugLayer,
             horizontalSegments, 
             verticalSegments, 
             this.texture, 
@@ -30,10 +34,12 @@ export class RoadSegment {
             pos3d, 
             size2d
         );
+
+        layer.addChild(this.gridMesh2d.mesh);
     }
 
-    getMesh() {
-        return this.gridMesh2d.mesh;
+    destroy() {
+        this.gridMesh2d.destroy(this.layer);
     }
 
     update(app, cam) {

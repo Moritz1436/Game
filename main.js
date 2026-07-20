@@ -6,6 +6,13 @@ import { MapScene } from "./Map/MapScene.js";
 /////////// GLOBALS //////////////
 const resolution = 9/16;
 
+window.DEBUG = {
+    enabled: false,
+    showMeshes: false,
+    meshes: 0,
+    triangles: 0
+}
+
 export function getWidth() {
     return 1920;
 }
@@ -43,6 +50,7 @@ export function getHeight() {
     resizeCanvas();
 
     // App Init
+    setupDebug(app);
     Input.init();
     await initializeRender();
 
@@ -74,4 +82,32 @@ async function initializeRender() {
         "assets/street.png"
     ]);
 
+}
+
+
+function setupDebug(app) {
+    const debugToggle = document.getElementById("debugToggle");
+
+    const showMeshesToggle = document.getElementById("showMeshesToggle");
+
+    debugToggle.checked = false;
+    debugToggle.addEventListener("change", (e) => {
+        window.DEBUG.enabled = e.target.checked;
+    });
+
+    showMeshesToggle.checked = false;
+    showMeshesToggle.addEventListener("change", (e) => {
+        window.DEBUG.showMeshes = e.target.checked;
+    });
+
+    const fpsCounter = document.getElementById("fpsCounter");
+    const meshCounter = document.getElementById("meshCounter");
+    const triangleCounter = document.getElementById("triangleCounter");
+
+    app.ticker.add(() => {
+        fpsCounter.textContent = `FPS: ${Math.round(app.ticker.FPS)}`;
+
+        meshCounter.textContent = `MESHES: ${window.DEBUG.meshes}`;
+        triangleCounter.textContent = `TRIANGLES: ${window.DEBUG.triangles}`;
+    });
 }

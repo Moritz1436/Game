@@ -5,15 +5,17 @@ import { Object3D } from "./Object3D.js"
 // for a cleaner texture when projecting from 3d to 2d
 export class GridMesh2D extends Object3D {
 
-    ///@param app - PixiJs application
-    ///@param cam - Camera Object of the Screen
+    ///@param app - PIXIJS Application
+    ///@param cam - Camera Object of the 3d World
+    ///@param layer - Pixi.Container to add the Mesh to
+    ///@param debugLayer - Pixi.Container for debug renderes
     ///@param rows - into how many rows the mesh's geometry will be devided (with verticies)
     ///@param cols - into how many cols the mesh's geometry will be devided (with verticies)
     ///@param texture - texture that will be put onto the mesh
     ///@param texCover2d - how the texture should cover the mesh (-1 full cover; any other will be world units until the texture repeats)
     ///@param pos3d - position of the Mesh (center)
     ///@param size2d - size (use .x and .y); y -> z
-    constructor(app, cam, rows, cols, texture, texCover2d, pos3d, size2d) {
+    constructor(app, cam, layer, debugLayer, rows, cols, texture, texCover2d, pos3d, size2d) {
         super(pos3d, {x: size2d.x, y: 0, z: size2d.y});
 
         this.rows = rows;
@@ -21,39 +23,43 @@ export class GridMesh2D extends Object3D {
 
         this.texLengthX = texCover2d.x;
         this.texLengthZ = texCover2d.y;
-        
+
+        this.debugGraphics = new PIXI.Graphics();
+        debugLayer.addChild(this.debugGraphics);
+
         this.rawVerticies = [];
         this.uvs = [];
         this.indices = [];
 
-        const horSegSize = this.size3d.z / this.rows;
-        const vertSegSize = this.size3d.x / this.cols;
-        for (let i = 0; i <= this.cols; i++){
-            const x = (this.pos3d.x - this.size3d.x * 0.5) + i * vertSegSize;
-            for (let j = 0; j <= this.rows; j++){
-                const z = (this.pos3d.z - this.size3d.z * 0.5) + j * horSegSize;
+        const stepX = this.size3d.x / cols;
+        const stepZ = this.size3d.z / rows;
 
-                this.rawVerticies.push({x: x, y: this.pos3d.y, z: z});
+        for (let x = 0; x <= cols; x++) {
+            for (let z = 0; z <= rows; z++) {
+
+                const localX = -this.size3d.x * 0.5 + x * stepX;
+                const localZ = -this.size3d.z * 0.5 + z * stepZ;
+
+                this.rawVerticies.push({
+                    x: localX,
+                    y: 0,
+                    z: localZ
+                });
 
                 let u;
                 let v;
 
-                // X
                 if (this.texLengthX === -1) {
-                    // tex over full width
-                    u = (x - (this.pos3d.x - this.size3d.x * 0.5)) / this.size3d.x;
+                    u = x / cols;
                 } else {
-                    // repeat tex every texLengthX units
-                    u = x / this.texLengthX;
+                    u = localX / this.texLengthX;
                 }
 
-                // Z
+
                 if (this.texLengthZ === -1) {
-                    // tex over full width
-                    v = (z - (this.pos3d.z - this.size3d.z * 0.5)) / this.size3d.z;
+                    v = z / rows;
                 } else {
-                    // repeat tex every texLengthZ units
-                    v = z / this.texLengthZ;
+                    v = localZ / this.texLengthZ;
                 }
 
                 this.uvs.push(u, v);
@@ -61,39 +67,25 @@ export class GridMesh2D extends Object3D {
         }
 
 
-        const vertsPerRow = this.rows + 1;
-        for (let row = 0; row < this.cols; row++) {
-            for (let col = 0; col < this.rows; col++) {
+        const vertsPerRow = rows + 1;
 
-                const topLeft = row * vertsPerRow + col;
-                const topRight = topLeft + 1;
-                const bottomLeft = topLeft + vertsPerRow;
-                const bottomRight = bottomLeft + 1;
+        for (let x = 0; x < cols; x++) {
+            for (let z = 0; z < rows; z++) {
+
+                const a = x * vertsPerRow + z;
+                const b = a + 1;
+                const c = a + vertsPerRow;
+                const d = c + 1;
 
                 this.indices.push(
-                    topLeft,
-                    topRight,
-                    bottomLeft,
-
-                    topRight,
-                    bottomRight,
-                    bottomLeft
+                    a,b,c,
+                    b,d,c
                 );
             }
         }
 
-        const w = app.renderer.width;
-        const h = app.renderer.height;
-
-        const verticies = [];
-        for (const vertex of this.rawVerticies){
-            const p = cam.project(vertex, w, h);
-
-            verticies.push(p.x, p.y);
-        }
-
         this.geometry = new PIXI.MeshGeometry({
-            positions: new Float32Array(verticies),
+            positions: new Float32Array(this.rawVerticies.length * 2),
             uvs: new Float32Array(this.uvs),
             indices: new Uint32Array(this.indices)
         });        
@@ -102,22 +94,104 @@ export class GridMesh2D extends Object3D {
             geometry: this.geometry,
             texture: texture
         });
-        this.geometry.getBuffer("aPosition").update();
+        window.DEBUG.meshes++;
+        window.DEBUG.triangles += this.indices.length / 3;
 
-        this.mesh.position.set(0,0);
+        this.update(app,cam);
+    }
+
+    destroy(layer) {
+        window.DEBUG.meshes--;
+        window.DEBUG.triangles -= this.indices.length / 3;
+        this.mesh.destroy();
+        layer.removeChild(this.mesh);
+        layer.removeChild(this.debugGraphics);
     }
 
     update(app, cam) {
         const w = app.renderer.width;
         const h = app.renderer.height;
 
+        let visible = true;
+
+        //update projected verticies
         for (let i = 0; i < this.rawVerticies.length; i++){
-            const vert = this.rawVerticies[i];
-            const p = cam.project(vert, w, h);
+            const local = this.rawVerticies[i];
+            const world = {
+                x: this.pos3d.x + local.x,
+                y: this.pos3d.y + local.y,
+                z: this.pos3d.z + local.z
+            };
+
+            const p = cam.project(world, w, h);
 
             if (p) {
                 this.geometry.positions[i * 2] = p.x;
                 this.geometry.positions[i * 2 + 1] = p.y;
+            }
+            else {
+                visible = false;
+                break;
+            }
+        }
+
+        this.mesh.visible = visible;
+
+        //  DEBUG DRAW BORDER ARROUND MESHES
+        this.debugGraphics.clear();
+        if (window.DEBUG.enabled && window.DEBUG.showMeshes && visible) {
+
+            const cornerIndices = [
+                0,
+                this.rows,
+                this.cols * (this.rows + 1),
+                this.cols * (this.rows + 1) + this.rows
+            ];
+            const corners = [];
+
+            for (const index of cornerIndices) {
+                const local = this.rawVerticies[index];
+
+                const world = {
+                    x: this.pos3d.x + local.x,
+                    y: this.pos3d.y + local.y,
+                    z: this.pos3d.z + local.z
+                };
+
+                const p = cam.project(world, w, h);
+
+                if (p) {
+                    corners.push(p);
+                }
+            }
+
+            if (corners.length === 4) {
+                this.debugGraphics.moveTo(
+                    corners[0].x,
+                    corners[0].y
+                );
+
+                this.debugGraphics.lineTo(
+                    corners[1].x,
+                    corners[1].y
+                );
+
+                this.debugGraphics.lineTo(
+                    corners[3].x,
+                    corners[3].y
+                );
+
+                this.debugGraphics.lineTo(
+                    corners[2].x,
+                    corners[2].y
+                );
+
+                this.debugGraphics.closePath();
+
+                this.debugGraphics.stroke({
+                    color: 0xff0000,
+                    width: 2
+                });
             }
         }
 
