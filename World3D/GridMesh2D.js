@@ -94,6 +94,7 @@ export class GridMesh2D extends Object3D {
             geometry: this.geometry,
             texture: texture
         });
+        //Debug count stats
         window.DEBUG.meshes++;
         window.DEBUG.triangles += this.indices.length / 3;
 
@@ -103,6 +104,7 @@ export class GridMesh2D extends Object3D {
     }
 
     destroy(layer) {
+        //Debug count stats
         window.DEBUG.meshes--;
         window.DEBUG.triangles -= this.indices.length / 3;
         this.mesh.destroy();

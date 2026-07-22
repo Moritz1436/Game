@@ -1,10 +1,22 @@
 
 
+MapScene:
+    - Nonkki
+    - rework in general
+    - restructure code into a class that extends PIXI.Container with a static func create for 
+        async init work and constructor for construction of the view
 
-- rework MapScene (nonkki)
-- performance upgrades in DriveScene (only render visible tiles)
-- work on DriveScene (trees, mountains, background, grass, etc...)
-    -> later add Cars (opponents and your car and custom texture stuff as well as affects, collisions etc)
-- create GarageScene
-- (maybe) own 3d vertex shader to render on gpu (currently using cpu)
-- Objectloader for more complex geos like a tree or a car so we can create them in Blockbench and just import them
+
+DriveScene:
+    - add objectManager (manage trees, rocks etc. -> create and delete + levels of detail based on distance to camera)
+    - lighting for imported 3d models
+    - clouds behind mountain
+    - improve transition between ground and mountains
+    - add other cars (spawning, collisions, movement (only z), etc.)
+    - add your own car (custom imported 3d model that is put together from pieces quipped by the player)
+    - finish somehow (drive into a city??)
+
+    - (maybe) own 3d vertex shader to render on gpu (currently using cpu)
+
+GarageScene:
+    - create it

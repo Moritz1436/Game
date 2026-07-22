@@ -6,6 +6,11 @@ import { MapScene } from "./Map/MapScene.js";
 /////////// GLOBALS //////////////
 const resolution = 9/16;
 
+/* Note:
+    Meshes and triangles are currently only created and destroyed in these classes:
+    - ModelInstance
+    - GridMesh2D
+*/
 window.DEBUG = {
     enabled: false,
     showMeshes: false,
@@ -75,14 +80,10 @@ async function initializeRender() {
         await PIXI.Assets.load("/assets/" + obj.texture);
     }
 
+    //static images
     await PIXI.Assets.load([
         //MapScene background map
-        "assets/landscape.png",
-
-        //DriveScene StreetSegment texture
-        "assets/street.png",
-        //DriveScene background Mountains
-        "assets/mountains.png"
+        "assets/landscape.png"
     ]);
 
 }
