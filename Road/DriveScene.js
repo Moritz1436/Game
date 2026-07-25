@@ -5,19 +5,53 @@ import { RoadManager } from "./RoadManager.js";
 import { GroundManager } from "./GroundManager.js";
 import { MountainManager } from "./MountainManager.js";
 import { ModelLoader } from "../Models/ModelLoader.js";
-import { ModelInstance } from "../Models/ModelInstance.js";
+import { ObjectManager } from "./ObjectManager.js";
+
+/* Note:
+    use https://itch.io/game-assets/free/tag-3d/tag-tree for more models
+*/
+
+/* Meshes used:
+    Object Layer: 10 * objectsPerChunkPerSide(40) * 2 * meshes_per_object(1)
+    Road Layer: 42
+    ground Layer: 42
+    mountain Layer: 0
+    Car Layer: todo
+*/
+
+/* 3D Models: Count(23)
+
+    Name         High       Medium       Low
+                                
+    Bush1    |  198 tris |  138 tris |   69 tris
+    Bush2    |  250 tris |  142 tris |   99 tris
+    Bush3    |  208 tris |  139 tris |   97 tris
+    Bush4    |  116 tris |   83 tris |   43 tris
+
+    Grass1   |   40 tris |   24 tris |   15 tris
+    Grass2   |   60 tris |   34 tris |   21 tris
+    Grass3   |  100 tris |   39 tris |   25 tris
+
+    Rock1    |  128 tris |   76 tris |   60 tris
+    Rock2    |  394 tris |  241 tris |  145 tris
+    Rock3    |  154 tris |  107 tris |   75 tris
+
+    Tree1    |  413 tris |  123 tris |   59 tris
+    Tree2    |  276 tris |   82 tris |   52 tris
+    Tree3    |  435 tris |  130 tris |   64 tris
+    Tree4    |  128 tris |   38 tris |   34 tris
+    Tree5    |  348 tris |  104 tris |   60 tris
+*/
 
 // TODO:
-// trees/other as importable 3d models but with worldPos and worldSize 
-// import many more different 3d models like trees, rocks, grass (+ many variations) to create forrest
-//      -> own objectManager, that 
-//          - deletes objects out of view/renderdistance (when projection is null) and also creates objects (random)
-//          - handles levels of detail for each object (far, middle, near)
-//          - adds lighting to objects (maybe put into modelInstance or smth)
+// better texture for ground
+// objectManager: LOD!!!! 1k meshes & 130k tris @ 100 elems per chunk is just too much; Idea: remove lod_low and maybe medium for grass, rocks and bushes maybe, and only create once the hit 'detailed'
 // clouds behind the mountains
 // a more realistic transition between mountainsSprite and horizon
 // other cars (-> collisions, spawning etc)
 // your own car
+// end somehow
+// overlay Layer for distance, speed, boost, compass etc.
 
 // LATER: 
 // bioms (+ biom specific surrounding models)
@@ -26,7 +60,7 @@ import { ModelInstance } from "../Models/ModelInstance.js";
 //Scene when driving from 1 city to another
 export class DriveScene extends PIXI.Container {
 
-    static treeAsset = null;
+    static assets = null;
 
     static async create(app, distance) {
 
@@ -36,12 +70,92 @@ export class DriveScene extends PIXI.Container {
             "assets/street.png",
 
             //background Mountains
-            "assets/mountains.png"
+            "assets/mountains.png",
+
+            //ground
+            "assets/ground.png"
         ]);
 
-        DriveScene.treeAsset = await ModelLoader.load(
-            "assets/models/tree.json"
-        );
+        //load assets
+        DriveScene.assets = {
+            trees: {
+                high: [
+                    await ModelLoader.load("assets/models/Tree1_high.json"),
+                    await ModelLoader.load("assets/models/Tree2_high.json"),
+                    await ModelLoader.load("assets/models/Tree3_high.json"),
+                    await ModelLoader.load("assets/models/Tree4_high.json"),
+                    await ModelLoader.load("assets/models/Tree5_high.json")
+                ],
+                medium: [
+                    await ModelLoader.load("assets/models/Tree1_med.json"),
+                    await ModelLoader.load("assets/models/Tree2_med.json"),
+                    await ModelLoader.load("assets/models/Tree3_med.json"),
+                    await ModelLoader.load("assets/models/Tree4_med.json"),
+                    await ModelLoader.load("assets/models/Tree5_med.json")
+                ],
+                low: [
+                    await ModelLoader.load("assets/models/Tree1_low.json"),
+                    await ModelLoader.load("assets/models/Tree2_low.json"),
+                    await ModelLoader.load("assets/models/Tree3_low.json"),
+                    await ModelLoader.load("assets/models/Tree4_low.json"),
+                    await ModelLoader.load("assets/models/Tree5_low.json")
+                ]
+            },
+            rocks: {
+                high: [
+                    await ModelLoader.load("assets/models/Rock1_high.json"),
+                    await ModelLoader.load("assets/models/Rock2_high.json"),
+                    await ModelLoader.load("assets/models/Rock3_high.json")
+                ],
+                medium: [
+                    await ModelLoader.load("assets/models/Rock1_med.json"),
+                    await ModelLoader.load("assets/models/Rock2_med.json"),
+                    await ModelLoader.load("assets/models/Rock3_med.json")
+                ],
+                low: [
+                    await ModelLoader.load("assets/models/Rock1_low.json"),
+                    await ModelLoader.load("assets/models/Rock2_low.json"),
+                    await ModelLoader.load("assets/models/Rock3_low.json")
+                ]
+            },
+            grass: {
+                high: [
+                    await ModelLoader.load("assets/models/Grass1_high.json"),
+                    await ModelLoader.load("assets/models/Grass2_high.json"),
+                    await ModelLoader.load("assets/models/Grass3_high.json")
+                ],
+                medium: [
+                    await ModelLoader.load("assets/models/Grass1_med.json"),
+                    await ModelLoader.load("assets/models/Grass2_med.json"),
+                    await ModelLoader.load("assets/models/Grass3_med.json")
+                ],
+                low: [
+                    await ModelLoader.load("assets/models/Grass1_low.json"),
+                    await ModelLoader.load("assets/models/Grass2_low.json"),
+                    await ModelLoader.load("assets/models/Grass3_low.json")
+                ]
+            },
+            bushes: {
+                high: [
+                    await ModelLoader.load("assets/models/Bush1_high.json"),
+                    await ModelLoader.load("assets/models/Bush2_high.json"),
+                    await ModelLoader.load("assets/models/Bush3_high.json"),
+                    await ModelLoader.load("assets/models/Bush4_high.json")
+                ],
+                medium: [
+                    await ModelLoader.load("assets/models/Bush1_med.json"),
+                    await ModelLoader.load("assets/models/Bush2_med.json"),
+                    await ModelLoader.load("assets/models/Bush3_med.json"),
+                    await ModelLoader.load("assets/models/Bush4_med.json")
+                ],
+                low: [
+                    await ModelLoader.load("assets/models/Bush1_low.json"),
+                    await ModelLoader.load("assets/models/Bush2_low.json"),
+                    await ModelLoader.load("assets/models/Bush3_low.json"),
+                    await ModelLoader.load("assets/models/Bush4_low.json")
+                ]
+            }
+        }
 
         return new DriveScene(app, distance);
     }
@@ -60,8 +174,8 @@ export class DriveScene extends PIXI.Container {
         this.camera = new Camera(app);
 
         //world units movement per second
-        this.speedX = 150;
-        this.speedZ = 500;
+        this.speedX = 250;
+        this.speedZ = 800;
 
         this.mountainLayer = new PIXI.Container();
         this.groundLayer = new PIXI.Container();
@@ -92,30 +206,13 @@ export class DriveScene extends PIXI.Container {
             this.mountainLayer
         );
 
-        
-        // 2 DEMO trees
-        this.trees = [];
-        this.trees.push(
-            new ModelInstance(
-                DriveScene.treeAsset,
-                this.objectLayer,
-                {
-                    x: 50,
-                    y: 0,
-                    z: -200
-                },
-                20
-            ),
-            new ModelInstance(
-                DriveScene.treeAsset,
-                this.objectLayer,
-                {
-                    x: -80,
-                    y: 0,
-                    z: -400
-                },
-                25
-            )
+        //objects at the side of the road (trees, rocks, etc.)
+        this.objects = new ObjectManager(
+            app, 
+            this.camera, 
+            this.objectLayer,
+            scaledDistance,
+            DriveScene.assets
         );
 
         //base background
@@ -156,19 +253,17 @@ export class DriveScene extends PIXI.Container {
             this.camera.pos3d.x -= this.speedX * dt;
         }
 
+        //update mountains
         this.mountains.update();
 
         //update roadsegments
         this.road.update();
 
+        //update object layer
+        this.objects.update();
+
         //update ground
         this.ground.update(this.app, this.camera);
-
-        // DEMO update trees
-        for (const tree of this.trees) {
-            tree.update(this.app, this.camera);
-        }
-
     }
 
 }

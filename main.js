@@ -108,8 +108,14 @@ function setupDebug(app) {
     speedToggle.addEventListener("change", (e) => {
         window.DEBUG.speedHack = e.target.checked;
         if (SceneStack.getTopSceneName() === "DriveScene"){
-            if (e.target.checked) SceneStack.getTopScene().speedZ *= 10;
-            else SceneStack.getTopScene().speedZ /= 10;
+            if (e.target.checked){
+                SceneStack.getTopScene().speedZ *= 10;      
+                SceneStack.getTopScene().speedX *= 10;      
+            } 
+            else {
+                SceneStack.getTopScene().speedZ /= 10;
+                SceneStack.getTopScene().speedX /= 10;
+            }
         }
     });
 

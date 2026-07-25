@@ -6,19 +6,68 @@ export class ModelAsset {
 
     constructor(data) {
 
-        this.name = data.name;
+        this.meshes = [];
 
-        this.meshes = data.meshes.map(mesh => {
+        let minX = Infinity;
+        let minY = Infinity;
+        let minZ = Infinity;
 
-            return {
-                //relative to model position
+        let maxX = -Infinity;
+        let maxY = -Infinity;
+        let maxZ = -Infinity;
+
+        for (const mesh of data.meshes) {
+
+            this.meshes.push({
                 vertices: mesh.vertices,
                 uvs: mesh.uvs,
                 indices: mesh.indices,
-                texture: mesh.texture
-            };
+                texture: mesh.texture,
+                normals: mesh.normals ?? null
+            });
 
-        });
+            const v = mesh.vertices;
+
+            for (let i = 0; i < v.length; i += 3) {
+
+                const x = v[i];
+                const y = v[i + 1];
+                const z = v[i + 2];
+
+                if (x < minX) minX = x;
+                if (y < minY) minY = y;
+                if (z < minZ) minZ = z;
+
+                if (x > maxX) maxX = x;
+                if (y > maxY) maxY = y;
+                if (z > maxZ) maxZ = z;
+            }
+        }
+
+        this.bounds = {
+            min: {
+                x: minX,
+                y: minY,
+                z: minZ
+            },
+            max: {
+                x: maxX,
+                y: maxY,
+                z: maxZ
+            }
+        };
+
+        this.size = {
+            x: maxX - minX,
+            y: maxY - minY,
+            z: maxZ - minZ
+        };
+
+        this.center = {
+            x: (minX + maxX) * 0.5,
+            y: (minY + maxY) * 0.5,
+            z: (minZ + maxZ) * 0.5
+        };
     }
 
     createInstance(pos3d, scale = 1) {

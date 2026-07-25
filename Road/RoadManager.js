@@ -1,6 +1,9 @@
-import { RoadSegment } from "./RoadSegment.js";
+import * as PIXI from "pixi.js";
+import { GridMesh2D } from "../World3D/GridMesh2D.js";
 
 export class RoadManager {
+
+    static width = 400;
 
     constructor(app, cam, layer, debugLayer, distance) {
 
@@ -8,11 +11,16 @@ export class RoadManager {
         this.cam = cam;
         this.layer = layer;
         this.debugLayer = debugLayer;
+        this.distance = distance;
 
         this.segmentLength = 100;
-        this.segmentWidth = 200;
+        this.texRepeatZ = 500;
 
-        this.renderDistance = cam.far / this.segmentLength;
+        this.frontChunks = Math.ceil(cam.far / this.segmentLength);
+        this.backChunks = 1;
+
+        this.texture = PIXI.Assets.get("assets/street.png");
+        this.texture.source.addressMode = "repeat";
 
         this.maxSegment = Math.ceil(distance / this.segmentLength);
 
@@ -20,68 +28,76 @@ export class RoadManager {
     }
 
     update() {
-
-        const camSegment = Math.floor((-this.cam.pos3d.z) / this.segmentLength);
+        const currentSegment = Math.floor(-this.cam.pos3d.z / this.segmentLength);
 
         const needed = new Set();
 
-        for (let i = camSegment - this.renderDistance; i <= camSegment + this.renderDistance; i++) {
-
-            if (i < 0 || i >= this.maxSegment) {
+        for (let i = currentSegment - this.backChunks; i <= currentSegment + this.frontChunks; i++) {
+            if (i < 0 ||  i >= this.maxSegment) {
                 continue;
             }
 
             needed.add(i);
 
+            //create new segments
             if (!this.segments.has(i)) {
                 this.createSegment(i);
             }
         }
 
-        for (const [index, segment] of this.segments) {
+        //remove old
+        for (const [id, segment] of this.segments) {
 
-            if (!needed.has(index)) {
-                segment.destroy();
-                this.segments.delete(index);
+            if (!needed.has(id)) {
+
+                segment.destroy(this.layer);
+
+                this.segments.delete(id);
             }
         }
 
         for (const segment of this.segments.values()) {
-            segment.update(this.app, this.cam);
+            segment.update(
+                this.app,
+                this.cam
+            );
         }
     }
 
     createSegment(index) {
+        const pos = {x: 0, y: 0, z: -(index * this.segmentLength) - this.segmentLength * 0.5};
+        const size = {x: RoadManager.width, y: this.segmentLength};
 
-        const pos = {
-            x: 0,
-            y: 0,
-            z: 50 - index * this.segmentLength
-        };
-
-        const size = {
-            x: this.segmentWidth,
-            y: this.segmentLength
-        };
-
-        const road = new RoadSegment(
+        const mesh = new GridMesh2D(
             this.app,
             this.cam,
             this.layer,
             this.debugLayer,
+            10,
+            20,
+            this.texture,
+            {
+                x: -1,
+                y: this.texRepeatZ
+            },
             pos,
             size
         );
 
-        this.segments.set(index, road);
+        this.layer.addChild(
+            mesh.mesh
+        );
 
-        this.layer.addChild(road.gridMesh2d.mesh);
+        this.segments.set(
+            index,
+            mesh
+        );
     }
 
     destroy() {
 
-        for (const road of this.segments.values()) {
-            road.destroy();
+        for (const segment of this.segments.values()) {
+            segment.destroy( this.layer );
         }
 
         this.segments.clear();

@@ -23,18 +23,20 @@ export class Camera extends Object3D {
     project(worldPos, width, height){
         const dx = worldPos.x - this.pos3d.x;
         const dy = worldPos.y - this.pos3d.y;
-        const dz = this.pos3d.z - worldPos.z;
+        let dz = this.pos3d.z - worldPos.z;
 
-        if (dz <= this.near || dz >= this.far) {
+        if (dz >= this.far) {
             return null;
+        }
+        if (dz < this.near) {
+            dz = this.near;
         }
         
         const fovRad = this.fov * Math.PI / 180;
-        const aspect = width / height;
         const scale = 1 / Math.tan(fovRad / 2);
         
-        const screenX = (dx / dz) * scale * aspect * width / 2 + width / 2;
-        const screenY = -(dy / dz) * scale * height / 2 + height / 2 + this.horizonOffset;
+        const screenX = (dx / dz) * scale * (height / 2) + width / 2;
+        const screenY = -(dy / dz) * scale * (height / 2) + height / 2 + this.horizonOffset;
         
         return { x: screenX, y: screenY };
     }

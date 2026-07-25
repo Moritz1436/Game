@@ -8,8 +8,7 @@ MapScene:
 
 
 DriveScene:
-    - add objectManager (manage trees, rocks etc. -> create and delete + levels of detail based on distance to camera)
-    - lighting for imported 3d models
+    - ObjectManager: LOD!!! Performance!!!
     - clouds behind mountain
     - improve transition between ground and mountains
     - add other cars (spawning, collisions, movement (only z), etc.)

@@ -1,134 +1,114 @@
-import { GroundChunk } from "./GroundChunk.js";
+import * as PIXI from "pixi.js";
+import { GridMesh2D } from "../World3D/GridMesh2D.js";
 
 
-//Manages the Ground Chunks, only holds chunks visible to the user, 
-// new ones get created and old chunks will be freed
+// Manages the ground as an infinite, forward-streamed strip of Z-chunks.
+// Chunk resolution (LOD) is re-evaluated every frame and chunks are rebuilt
+// in place when their LOD level changes.
 export class GroundManager {
 
-    constructor(app, cam, layer, debugLayer, pos3d, worldSize2d) {
-
-        this.cam = cam;
+    ///@param app - PIXIJS Application
+    ///@param cam - Camera Object of the 3d World
+    ///@param layer - PIXI.Container the ground meshes get added to
+    ///@param debugLayer - PIXI.Container for debug outlines
+    ///@param pos3d - world-space origin of the ground strip (x = strip center, z = chunk index origin)
+    ///@param groundWidth - width in world units (X) each chunk mesh covers
+    constructor(app, cam, layer, debugLayer, pos3d) {
         this.app = app;
+        this.cam = cam;
         this.layer = layer;
         this.debugLayer = debugLayer;
 
-        this.chunkSize = 100;
-        this.chunks = new Map();
-        
         this.pos3d = pos3d;
-        this.worldSize2d = worldSize2d;
-        // how many chunks will be rendered
-        this.renderDistanceX = 15;
-        this.renderDistanceZ = cam.far / this.chunkSize;
+        this.groundWidth = 5000;
 
+        // depth (Z) of a single chunk band
+        this.chunkLength = 100;
 
-        // chunk limits precompute
-        this.minChunkX = Math.floor(
-            (-worldSize2d.x * 0.5) / this.chunkSize
-        );
+        // World-unit texture repeat instead of per-chunk (-1) UVs, so a real
+        // texture tiles seamlessly across chunk borders instead of stretching
+        // per chunk.
+        this.texRepeatX = 300;
+        this.texRepeatZ = 300;
 
-        this.maxChunkX = Math.floor(
-            (worldSize2d.x * 0.5) / this.chunkSize
-        );
+        this.frontChunks = Math.ceil(cam.far / this.chunkLength);
+        this.backChunks = 1;
 
-
-        this.minChunkZ = Math.floor(
-            (-worldSize2d.y * 0.5) / this.chunkSize
-        );
-
-        this.maxChunkZ = Math.floor(
-            (worldSize2d.y * 0.5) / this.chunkSize
-        );
+        // id -> { gridMesh2d, lod: 'high'|'mid'|'low' }
+        this.chunks = new Map();
     }
 
     update() {
-        const camX = this.cam.pos3d.x;
-        const camZ = this.cam.pos3d.z;
+        const localZ = this.cam.pos3d.z - this.pos3d.z;
+        const currentChunk = Math.floor(-localZ / this.chunkLength);
 
-        // current chunk
-        const localX = camX - this.pos3d.x;
-        const localZ = camZ - this.pos3d.z;
+        const needed = new Set();
 
-        const chunkX = Math.floor(localX / this.chunkSize);
-        const chunkZ = Math.floor(localZ / this.chunkSize);
+        for (let i = currentChunk - this.backChunks; i <= currentChunk + this.frontChunks; i++) {
+            needed.add(i);
 
-        const neededChunks = new Set();
+            const desiredLod = this.getLod(i - currentChunk);
+            const chunk = this.chunks.get(i);
 
-        //create needed chunks
-        for (let x = -this.renderDistanceX; x <= this.renderDistanceX; x++) {
-            for (let z = -this.renderDistanceZ; z <= this.renderDistanceZ; z++) {
-
-                const cx = chunkX + x;
-                const cz = chunkZ + z;
-
-                if (
-                    cx < this.minChunkX ||
-                    cx > this.maxChunkX ||
-                    cz < this.minChunkZ ||
-                    cz > this.maxChunkZ
-                ) {
-                    continue;
-                }
-
-                const chunkWorldZ = this.pos3d.z + cz * this.chunkSize;
-                //chunk is behind cam
-                if (chunkWorldZ > this.cam.pos3d.z) {
-                    continue;
-                }
-
-                const key = `${cx},${cz}`;
-
-                neededChunks.add(key);
-
-
-                if (!this.chunks.has(key)) {
-                    this.createChunk(cx, cz);
-                }
+            if (!chunk) {
+                this.chunks.set(i, this.buildChunk(i, desiredLod));
+            } else if (chunk.lod !== desiredLod.level) {
+                // camera crossed close enough (or far enough) that this
+                // chunk's resolution is now wrong -> rebuild its geometry
+                chunk.gridMesh2d.destroy(this.layer);
+                this.chunks.set(i, this.buildChunk(i, desiredLod));
             }
         }
 
-        //remove unsued chunks
-        for (const [key, chunk] of this.chunks) {
-
-            if (!neededChunks.has(key)) {
-                chunk.destroy();
-
-                this.chunks.delete(key);
+        for (const [id, chunk] of this.chunks) {
+            if (!needed.has(id)) {
+                chunk.gridMesh2d.destroy(this.layer);
+                this.chunks.delete(id);
             }
         }
 
-        //update visible chunks
         for (const chunk of this.chunks.values()) {
             chunk.gridMesh2d.update(this.app, this.cam);
         }
-
     }
 
-    createChunk(x, z) {
+    // chunkOffset is measured in chunk units relative to the camera's
+    // current chunk (not world units) - only changes when the camera
+    // crosses a chunk boundary, so this never thrashes mid-chunk.
+    getLod(chunkOffset) {
+        const dist = Math.abs(chunkOffset);
+        if (dist <= 2) return { level: 'high', rows: 6, cols: 10 };
+        if (dist <= 6) return { level: 'mid', rows: 3, cols: 6 };
+        return { level: 'low', rows: 1, cols: 3 };
+    }
 
+    buildChunk(id, lod) {
         const pos = {
-            x: this.pos3d.x + x * this.chunkSize + this.chunkSize * 0.5,
+            x: this.pos3d.x,
             y: this.pos3d.y,
-            z: this.pos3d.z + z * this.chunkSize + this.chunkSize * 0.5
+            z: this.pos3d.z - id * this.chunkLength - this.chunkLength * 0.5
         };
+        const size = { x: this.groundWidth, y: this.chunkLength };
 
-        const size = {
-            x: this.chunkSize,
-            y: this.chunkSize
-        };
+        const texture = PIXI.Assets.get("assets/ground.png");
+        texture.source.addressMode = "repeat";
 
-        const chunk = new GroundChunk(
-            this.app,
-            this.cam,
-            this.layer,
-            this.debugLayer,
-            pos,
-            size
+        const gridMesh2d = new GridMesh2D(
+            this.app, this.cam, this.layer, this.debugLayer,
+            lod.rows, lod.cols,
+            texture,
+            { x: this.texRepeatX, y: this.texRepeatZ },
+            pos, size
         );
+        this.layer.addChild(gridMesh2d.mesh);
 
-        this.chunks.set(`${x},${z}`, chunk);
-
-        this.layer.addChild(chunk.gridMesh2d.mesh);
+        return { gridMesh2d, lod: lod.level };
     }
 
+    destroy() {
+        for (const chunk of this.chunks.values()) {
+            chunk.gridMesh2d.destroy(this.layer);
+        }
+        this.chunks.clear();
+    }
 }

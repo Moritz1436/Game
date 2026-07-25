@@ -59,7 +59,7 @@ export class GridMesh2D extends Object3D {
                 if (this.texLengthZ === -1) {
                     v = z / rows;
                 } else {
-                    v = (pos3d.z + localZ) / this.texLengthZ;
+                    v = -(pos3d.z + localZ) / this.texLengthZ;
                 }
 
                 this.uvs.push(u, v);

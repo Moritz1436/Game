@@ -9,7 +9,8 @@ Output shape:
             "texture": "assets/models/foo_BaseColor.jpg" | null,
             "vertices": [x, y, z,  x, y, z, ...],
             "uvs":      [u, v,  u, v, ...],
-            "indices":  [i0, i1, i2, ...]
+            "indices":  [i0, i1, i2, ...],
+            "normals":  [n0, n1, n2, ...]
         },
         ...
     ]
@@ -32,6 +33,8 @@ import struct
 import base64
 import argparse
 import numpy as np
+import random
+import string
 
 # --------------------------------------------------------------------------
 # GLB container parsing
@@ -204,9 +207,27 @@ def transform_points(matrix, points):
     return transformed[:, :3]
 
 
+def transform_normals(matrix, normals):
+    # Normals must be transformed by the inverse-transpose of the 3x3
+    # linear part (not the full 4x4 with translation), otherwise they get
+    # skewed under non-uniform scale and shifted by translation.
+    linear = matrix[:3, :3]
+    try:
+        normal_matrix = np.linalg.inv(linear).T
+    except np.linalg.LinAlgError:
+        # degenerate matrix (e.g. zero scale) -> fall back to raw linear part
+        normal_matrix = linear
+
+    transformed = (normal_matrix @ normals.T).T
+
+    lengths = np.linalg.norm(transformed, axis=1, keepdims=True)
+    lengths[lengths == 0] = 1.0
+    return transformed / lengths
+
+
 def z_up_to_y_up(points):
-    # glTF is Y-up by spec already. This is only for source assets that were
-    # exported non-compliantly and are still Z-up (right-handed):
+    # Works for both points AND direction vectors (normals), since this is
+    # a pure axis swap with no translation involved.
     # (x, y, z)_z-up  ->  (x, z, -y)_y-up   (a -90 deg rotation around X)
     out = points.copy()
     out[:, 1] = points[:, 2]
@@ -261,7 +282,8 @@ def resolve_texture(gltf, glb_bin_chunk, base_dir, material_index,
 
 
 def _write_texture(raw_bytes, ext, texture_dir, out_dir, mesh_label):
-    fname = f"{mesh_label}.{ext}"
+    random_id = ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
+    fname = f"{mesh_label}_{random_id}.{ext}"
     with open(os.path.join(out_dir, fname), 'wb') as f:
         f.write(raw_bytes)
     return f"{texture_dir.rstrip('/')}/{fname}"
@@ -309,13 +331,26 @@ def convert_primitive(gltf, glb_bin_chunk, base_dir, primitive, world_matrix,
     else:
         uvs = np.zeros((positions.shape[0], 2))
 
-    # vertices[i] and uvs[i] must refer to the same logical vertex, and both
-    # get walked by the same index buffer -> their counts must match.
+    # Normalen lesen (optional, glTF-Attribut ist nicht garantiert vorhanden)
+    if 'NORMAL' in attrs:
+        normals = read_accessor(gltf, glb_bin_chunk, base_dir, attrs['NORMAL'])[:, :3]
+        if apply_transform:
+            normals = transform_normals(world_matrix, normals)
+        if source_z_up:
+            normals = z_up_to_y_up(normals)
+    else:
+        normals = None
+
     assert positions.shape[0] == uvs.shape[0], (
         f"Mismatched vertex/uv count in '{mesh_label}': "
         f"{positions.shape[0]} positions vs {uvs.shape[0]} uvs. "
         f"This should never happen for a valid glTF primitive."
     )
+    if normals is not None:
+        assert positions.shape[0] == normals.shape[0], (
+            f"Mismatched vertex/normal count in '{mesh_label}': "
+            f"{positions.shape[0]} positions vs {normals.shape[0]} normals."
+        )
 
     if 'indices' in primitive:
         idx = read_accessor(gltf, glb_bin_chunk, base_dir, primitive['indices'])[:, 0].astype('int64').tolist()
@@ -323,6 +358,7 @@ def convert_primitive(gltf, glb_bin_chunk, base_dir, primitive, world_matrix,
         idx = list(range(positions.shape[0]))
 
     idx = triangulate_indices(idx, primitive.get('mode', 4))
+    triangle_count = len(idx) // 3
 
     texture = resolve_texture(
         gltf, glb_bin_chunk, base_dir, primitive.get('material'),
@@ -334,6 +370,11 @@ def convert_primitive(gltf, glb_bin_chunk, base_dir, primitive, world_matrix,
         "vertices": [round(float(v), 6) for v in positions.flatten().tolist()],
         "uvs": [round(float(v), 6) for v in uvs.flatten().tolist()],
         "indices": [int(i) for i in idx],
+        "normals": (
+            [round(float(v), 6) for v in normals.flatten().tolist()]
+            if normals is not None else None
+        ),
+        "triangles": triangle_count
     }
 
 
@@ -394,7 +435,11 @@ def convert(input_path, output_path, texture_dir='assets/models', apply_transfor
     with open(output_path, 'w') as f:
         json.dump(result, f, indent=4)
 
-    print(f"Wrote {len(meshes_out)} mesh(es) to {output_path}")
+    total_triangles = sum(
+        mesh["triangles"]
+        for mesh in meshes_out
+    )
+    print(f"Wrote {len(meshes_out)} mesh(es) with {total_triangles} total triangles to {output_path}")
     return result
 
 
