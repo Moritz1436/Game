@@ -22,12 +22,12 @@ export class ObjectManager {
 
         // Loading distance in chunks in z direction
         this.frontChunks = Math.ceil(camera.far / this.chunkLength);
-        this.backChunks = 1;
+        this.backChunks = 0;
 
         //loading distance in world units in x direction
         this.loadingDistanceX = 500;
 
-        this.objectsPerChunkPerSide = 40;
+        this.objectsPerChunkPerSide = 50;
 
         this.loadedChunks = new Map();
     }
@@ -81,7 +81,7 @@ export class ObjectManager {
         // update objects
         for (const chunk of this.loadedChunks.values()) {
             for (const obj of chunk.objects) {
-                if (obj !== null){
+                if (obj.instance !== null){
                     obj.instance.update(
                         this.app,
                         this.camera
@@ -184,6 +184,32 @@ export class ObjectManager {
         };
     }
 
+    getObjectLOD(type, chunkLOD) {
+        switch (type) {
+
+            case "trees":
+                // trees: high / medium / low
+                return chunkLOD;
+
+            case "bushes":
+            case "rocks":
+                // bushes + rocks: only high + medium
+                if (chunkLOD === "low")
+                    return null;
+
+                return chunkLOD;
+
+            case "grass":
+                // grass: only high
+                if (chunkLOD !== "high")
+                    return null;
+
+                return "high";
+        }
+
+        return null;
+    }
+
     getLOD(chunkOffset) {
 
         const d = Math.abs(chunkOffset);
@@ -199,6 +225,16 @@ export class ObjectManager {
 
     createInstances(chunk) {
         for (const obj of chunk.objects) {
+            const lod = this.getObjectLOD(
+                obj.type,
+                chunk.lod
+            );
+
+            //object doesnt exist at that LOD
+            if (lod === null) {
+                obj.instance = null;
+                continue;
+            }
 
             const asset = this.assets[obj.type][chunk.lod][obj.variant];
 

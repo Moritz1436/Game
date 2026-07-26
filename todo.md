@@ -8,14 +8,23 @@ MapScene:
 
 
 DriveScene:
-    - ObjectManager: LOD!!! Performance!!!
+    - forest background something
+    - better ground texture
     - clouds behind mountain
-    - improve transition between ground and mountains
+    - improve transition between horizon and mountainsSprite
     - add other cars (spawning, collisions, movement (only z), etc.)
-    - add your own car (custom imported 3d model that is put together from pieces quipped by the player)
+    - add your own car (custom imported 3d model that is put together from pieces equipped by the player)
     - finish somehow (drive into a city??)
+    - overlay Layer for distance, speed, boost, compass etc.
+    - cam movement bounds in x direction
+    - Load all carPieceModels and Objects before the whole game inside a loadingscreen
 
-    - (maybe) own 3d vertex shader to render on gpu (currently using cpu)
+    LATER:
+    - bioms (+ biom specific surrounding models)
+    - street has curves and ground not always being flat -> little elevations
 
 GarageScene:
     - create it
+
+LoadingScreen:
+    - before the game starts to load CarPieceModels and ObjectModels (forrest on the sides)

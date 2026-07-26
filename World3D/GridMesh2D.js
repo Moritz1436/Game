@@ -1,5 +1,7 @@
 import * as PIXI from "pixi.js";
 import { Object3D } from "./Object3D.js"
+import { createGpuProjectShader } from "./GpuProjectShader.js";
+import { createGeometry3D } from "./Geometry3DUtils.js"
 
 // 1 rectangular Mesh internally subdevided into many rectangles 
 // for a cleaner texture when projecting from 3d to 2d
@@ -26,6 +28,7 @@ export class GridMesh2D extends Object3D {
 
         this.debugGraphics = null;
         this.debugLayer = debugLayer;
+        this.cam = cam;
 
         this.rawVerticies = [];
         this.uvs = [];
@@ -84,23 +87,22 @@ export class GridMesh2D extends Object3D {
             }
         }
 
-        this.geometry = new PIXI.MeshGeometry({
-            positions: new Float32Array(this.rawVerticies.length * 2),
-            uvs: new Float32Array(this.uvs),
-            indices: new Uint32Array(this.indices)
-        });        
-        
+        const flatPositions = new Float32Array(this.rawVerticies.length * 3);
+        for (let i = 0; i < this.rawVerticies.length; i++) {
+            flatPositions[i*3]   = this.rawVerticies[i].x;
+            flatPositions[i*3+1] = this.rawVerticies[i].y;
+            flatPositions[i*3+2] = this.rawVerticies[i].z;
+        }
+
+        this.geometry = createGeometry3D(flatPositions, this.uvs, this.indices);
+
         this.mesh = new PIXI.Mesh({
             geometry: this.geometry,
-            texture: texture
+            shader: createGpuProjectShader(texture, pos3d, 1.0)
         });
         //Debug count stats
         window.DEBUG.meshes++;
         window.DEBUG.triangles += this.indices.length / 3;
-
-        this.geometryPositionBuffer = this.geometry.getBuffer("aPosition");
-
-        this.update(app,cam);
     }
 
     destroy(layer) {
@@ -119,36 +121,11 @@ export class GridMesh2D extends Object3D {
     }
 
     update(app, cam) {
-        const w = app.renderer.width;
-        const h = app.renderer.height;
-
-        let visible = true;
-
-        //update projected verticies
-        for (let i = 0; i < this.rawVerticies.length; i++){
-            const local = this.rawVerticies[i];
-            const world = {
-                x: this.pos3d.x + local.x,
-                y: this.pos3d.y + local.y,
-                z: this.pos3d.z + local.z
-            };
-
-            const p = cam.project(world, w, h);
-
-            if (p) {
-                this.geometry.positions[i * 2] = p.x;
-                this.geometry.positions[i * 2 + 1] = p.y;
-            }
-            else {
-                visible = false;
-                break;
-            }
-        }
-
-        this.mesh.visible = visible;
 
         //  DEBUG DRAW BORDER ARROUND MESHES
         if (window.DEBUG.enabled && window.DEBUG.showMeshes && visible) {
+            const w = app.renderer.width;
+            const h = app.renderer.height;
 
             if (!this.debugGraphics) {
                 this.debugGraphics = new PIXI.Graphics();
@@ -168,8 +145,6 @@ export class GridMesh2D extends Object3D {
                 }
             }
         }
-
-        this.geometryPositionBuffer.update();
     }
 
 

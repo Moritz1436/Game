@@ -6,13 +6,16 @@ import { GroundManager } from "./GroundManager.js";
 import { MountainManager } from "./MountainManager.js";
 import { ModelLoader } from "../Models/ModelLoader.js";
 import { ObjectManager } from "./ObjectManager.js";
+import { OverlayManager } from "./OverlayManager.js";
+import { SceneStack } from "../Utils/SceneStack.js";
+import { MapScene } from "../Map/MapScene.js";
 
 /* Note:
     use https://itch.io/game-assets/free/tag-3d/tag-tree for more models
 */
 
 /* Meshes used:
-    Object Layer: 10 * objectsPerChunkPerSide(40) * 2 * meshes_per_object(1)
+    Object Layer: 9 * objectsPerChunkPerSide(50) * 2 * meshes_per_object(1) (in theory, lazy loading for small objects far away)
     Road Layer: 42
     ground Layer: 42
     mountain Layer: 0
@@ -23,18 +26,18 @@ import { ObjectManager } from "./ObjectManager.js";
 
     Name         High       Medium       Low
                                 
-    Bush1    |  198 tris |  138 tris |   69 tris
-    Bush2    |  250 tris |  142 tris |   99 tris
-    Bush3    |  208 tris |  139 tris |   97 tris
-    Bush4    |  116 tris |   83 tris |   43 tris
+    Bush1    |  198 tris |  138 tris | ---- tris
+    Bush2    |  250 tris |  142 tris | ---- tris
+    Bush3    |  208 tris |  139 tris | ---- tris
+    Bush4    |  116 tris |   83 tris | ---- tris
 
-    Grass1   |   40 tris |   24 tris |   15 tris
-    Grass2   |   60 tris |   34 tris |   21 tris
-    Grass3   |  100 tris |   39 tris |   25 tris
+    Grass1   |   40 tris | ---- tris | ---- tris
+    Grass2   |   60 tris | ---- tris | ---- tris
+    Grass3   |  100 tris | ---- tris | ---- tris
 
-    Rock1    |  128 tris |   76 tris |   60 tris
-    Rock2    |  394 tris |  241 tris |  145 tris
-    Rock3    |  154 tris |  107 tris |   75 tris
+    Rock1    |  128 tris |   76 tris | ---- tris
+    Rock2    |  394 tris |  241 tris | ---- tris
+    Rock3    |  154 tris |  107 tris | ---- tris
 
     Tree1    |  413 tris |  123 tris |   59 tris
     Tree2    |  276 tris |   82 tris |   52 tris
@@ -42,20 +45,6 @@ import { ObjectManager } from "./ObjectManager.js";
     Tree4    |  128 tris |   38 tris |   34 tris
     Tree5    |  348 tris |  104 tris |   60 tris
 */
-
-// TODO:
-// better texture for ground
-// objectManager: LOD!!!! 1k meshes & 130k tris @ 100 elems per chunk is just too much; Idea: remove lod_low and maybe medium for grass, rocks and bushes maybe, and only create once the hit 'detailed'
-// clouds behind the mountains
-// a more realistic transition between mountainsSprite and horizon
-// other cars (-> collisions, spawning etc)
-// your own car
-// end somehow
-// overlay Layer for distance, speed, boost, compass etc.
-
-// LATER: 
-// bioms (+ biom specific surrounding models)
-// street has curves and ground not always being flat -> little elevations
 
 //Scene when driving from 1 city to another
 export class DriveScene extends PIXI.Container {
@@ -111,11 +100,6 @@ export class DriveScene extends PIXI.Container {
                     await ModelLoader.load("assets/models/Rock1_med.json"),
                     await ModelLoader.load("assets/models/Rock2_med.json"),
                     await ModelLoader.load("assets/models/Rock3_med.json")
-                ],
-                low: [
-                    await ModelLoader.load("assets/models/Rock1_low.json"),
-                    await ModelLoader.load("assets/models/Rock2_low.json"),
-                    await ModelLoader.load("assets/models/Rock3_low.json")
                 ]
             },
             grass: {
@@ -123,16 +107,6 @@ export class DriveScene extends PIXI.Container {
                     await ModelLoader.load("assets/models/Grass1_high.json"),
                     await ModelLoader.load("assets/models/Grass2_high.json"),
                     await ModelLoader.load("assets/models/Grass3_high.json")
-                ],
-                medium: [
-                    await ModelLoader.load("assets/models/Grass1_med.json"),
-                    await ModelLoader.load("assets/models/Grass2_med.json"),
-                    await ModelLoader.load("assets/models/Grass3_med.json")
-                ],
-                low: [
-                    await ModelLoader.load("assets/models/Grass1_low.json"),
-                    await ModelLoader.load("assets/models/Grass2_low.json"),
-                    await ModelLoader.load("assets/models/Grass3_low.json")
                 ]
             },
             bushes: {
@@ -147,12 +121,6 @@ export class DriveScene extends PIXI.Container {
                     await ModelLoader.load("assets/models/Bush2_med.json"),
                     await ModelLoader.load("assets/models/Bush3_med.json"),
                     await ModelLoader.load("assets/models/Bush4_med.json")
-                ],
-                low: [
-                    await ModelLoader.load("assets/models/Bush1_low.json"),
-                    await ModelLoader.load("assets/models/Bush2_low.json"),
-                    await ModelLoader.load("assets/models/Bush3_low.json"),
-                    await ModelLoader.load("assets/models/Bush4_low.json")
                 ]
             }
         }
@@ -166,12 +134,14 @@ export class DriveScene extends PIXI.Container {
         super();
 
         const scaledDistance = distance * 20;
+        this.distance = scaledDistance;
 
         this.app = app;
 
         this.label = "DriveScene";
 
-        this.camera = new Camera(app);
+        this.camPos3dStart = {x: 0, y: 100, z: 0};
+        this.camera = new Camera(app, this.camPos3dStart);
 
         //world units movement per second
         this.speedX = 250;
@@ -181,6 +151,7 @@ export class DriveScene extends PIXI.Container {
         this.groundLayer = new PIXI.Container();
         this.roadLayer = new PIXI.Container();
         this.objectLayer = new PIXI.Container();
+        this.overlayLayer = new PIXI.Container();
         this.debugLayer = new PIXI.Container();
 
         //Background -> Foreground
@@ -188,6 +159,7 @@ export class DriveScene extends PIXI.Container {
         this.addChild(this.groundLayer);
         this.addChild(this.roadLayer);
         this.addChild(this.objectLayer);
+        this.addChild(this.overlayLayer);
         this.addChild(this.debugLayer);
 
         //road
@@ -215,6 +187,8 @@ export class DriveScene extends PIXI.Container {
             DriveScene.assets
         );
 
+        this.overlay = new OverlayManager(app, this.overlayLayer);
+
         //base background
         const groundLength = scaledDistance + 3200;
         const groundPos = {
@@ -227,12 +201,17 @@ export class DriveScene extends PIXI.Container {
         app.ticker.add(this.update, this);
     }
 
-    destroy(options) {
+    destroy() {
         this.app.ticker.remove(this.update, this);
         this.road.destroy();
         this.mountains.destroy();
+        this.objects.destroy();
+        this.overlay.destroy();
+        this.ground.destroy();
 
-        super.destroy(options);
+        super.destroy({
+            children: true
+        });
     }
 
     update(ticker) {
@@ -253,17 +232,29 @@ export class DriveScene extends PIXI.Container {
             this.camera.pos3d.x -= this.speedX * dt;
         }
 
+        const distanceCovered = this.camPos3dStart.z - this.camera.pos3d.z;
+        if (distanceCovered >= this.distance){
+            console.log("finish");
+            
+            SceneStack.pushScene(this.app, new MapScene(this.app));
+            return;
+        }
+
         //update mountains
         this.mountains.update();
-
+        
         //update roadsegments
         this.road.update();
-
+        
         //update object layer
         this.objects.update();
-
+        
         //update ground
         this.ground.update(this.app, this.camera);
+
+        this.overlay.update(distanceCovered, this.speedZ);
+
+        this.camera.update();
     }
 
 }

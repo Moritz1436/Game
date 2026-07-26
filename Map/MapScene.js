@@ -72,6 +72,10 @@ export class MapScene extends PIXI.Container {
         SceneStack.pushScene(this.app, scene, false);
     }
 
+    destroy() {
+        //to be implemented
+    }
+
 
     createGotoCityScene() {
         const c = new PIXI.Container();

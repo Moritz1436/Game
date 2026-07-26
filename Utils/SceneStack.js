@@ -18,6 +18,7 @@ export class SceneStack {
             const oldScene = this.sceneStack.pop();
 
             app.stage.removeChild(oldScene);
+            oldScene.destroy();
         }
 
         this.sceneStack.push(scene);
@@ -31,6 +32,7 @@ export class SceneStack {
         const oldScene = this.sceneStack.pop();
 
         app.stage.removeChild(oldScene);
+        oldScene.destroy();
         return oldScene;
     }
 

@@ -1,6 +1,7 @@
 import * as PIXI from "pixi.js";
 import { Object3D } from "../World3D/Object3D.js";
-import { createLightShader } from "./LightShader.js";
+import { createGpuProjectLitShader } from "../World3D/GpuProjectLitShader.js";
+import { createGeometry3D } from "../World3D/Geometry3DUtils.js"
 
 const LIGHT_DIR = normalize({ x: 0.4, y: 1.0, z: 0.3 });
 const AMBIENT = 0.35;
@@ -13,21 +14,14 @@ function normalize(v) {
 
 // fills `out` (Float32Array, 3 values per vertex) with brightness from normals
 function computeVertexLighting(normals, out) {
-    if (!normals) {
-        out.fill(1.0); // no normals -> fallback
-        return;
-    }
+    if (!normals) { out.fill(1.0); return; }
     for (let i = 0, j = 0; i < normals.length; i += 3, j += 3) {
-        let nx = normals[i], ny = normals[i + 1], nz = normals[i + 2];
-        const len = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1;
-        nx /= len; ny /= len; nz /= len;
-
-        const dot = nx * LIGHT_DIR.x + ny * LIGHT_DIR.y + nz * LIGHT_DIR.z;
+        let nx = normals[i], ny = normals[i+1], nz = normals[i+2];
+        const len = Math.sqrt(nx*nx + ny*ny + nz*nz) || 1;
+        nx/=len; ny/=len; nz/=len;
+        const dot = nx*LIGHT_DIR.x + ny*LIGHT_DIR.y + nz*LIGHT_DIR.z;
         const intensity = Math.min(1.2, AMBIENT + DIFFUSE * Math.max(0, dot));
-
-        out[j] = intensity;
-        out[j + 1] = intensity;
-        out[j + 2] = intensity;
+        out[j] = out[j+1] = out[j+2] = intensity;
     }
 }
 
@@ -51,33 +45,21 @@ export class ModelInstance extends Object3D {
         this.meshes = [];
 
         for (const meshData of asset.meshes) {
-
             const vertexCount = meshData.vertices.length / 3;
 
-            const geometry = new PIXI.MeshGeometry({
-                positions: new Float32Array(
-                    (meshData.vertices.length / 3) * 2
-                ),
-                uvs: new Float32Array(meshData.uvs),
-                indices: new Uint32Array(meshData.indices)
-            });
-
-            //coloring (cpu lighting with normals)
             const colors = new Float32Array(vertexCount * 3);
             computeVertexLighting(meshData.normals, colors);
-            geometry.addAttribute("aColor", colors, 3);
+
+            const geometry = createGeometry3D(meshData.vertices, meshData.uvs, meshData.indices, colors);
 
             const mesh = new PIXI.Mesh({
                 geometry,
-                shader: createLightShader(meshData.texture)
+                shader: createGpuProjectLitShader(meshData.texture, pos3d, scale)
             });
 
             this.meshes.push({
                 mesh,
-                geometry,
-                positionBuffer: geometry.getBuffer("aPosition"),
-                vertices: meshData.vertices,
-                normals: meshData.normals
+                geometry
             });
 
             this.container.addChild(mesh);
@@ -89,52 +71,28 @@ export class ModelInstance extends Object3D {
 
     }
 
-    update(app, cam) {
-        const w = app.renderer.width;
-        const h = app.renderer.height;
+    //only call when the obejcts position has changed
+    updatePosition(newPos3d) {
+        this.pos3d = newPos3d;
+        for (const m of this.meshes) {
+            const u = m.mesh.shader.resources.uObject.uniforms;
+            u.uObjPos[0] = newPos3d.x;
+            u.uObjPos[1] = newPos3d.y;
+            u.uObjPos[2] = newPos3d.z;
+        }
+    }
 
+    setVisible(v) {
+        for (const m of this.meshes) m.mesh.visible = v;
+    }
+
+    update(app, cam) {
         const dx = this.pos3d.x - cam.pos3d.x;
         const dy = this.pos3d.y - cam.pos3d.y;
-        const dz = this.pos3d.z - cam.pos3d.z;
-
-        const distance =
-            Math.sqrt(
-                dx*dx +
-                dy*dy +
-                dz*dz
-            );
+        const dz = cam.pos3d.z - this.pos3d.z; // Tiefe vor der Kamera
 
         //depth for rendering
-        this.container.zIndex = -distance;
-
-        for (const m of this.meshes) {
-
-            const positions = m.positionBuffer.data;
-
-            let visible = true;
-
-            for (let i = 0, j = 0; i < m.vertices.length; i += 3, j += 2) {
-
-                const world = {
-                    x: this.pos3d.x + m.vertices[i] * this.scale,
-                    y: this.pos3d.y + m.vertices[i + 1] * this.scale,
-                    z: this.pos3d.z + m.vertices[i + 2] * this.scale
-                };
-
-                const p = cam.project(world, w, h);
-
-                if (!p) {
-                    visible = false;
-                    break;
-                }
-
-                positions[j] = p.x;
-                positions[j + 1] = p.y;
-            }
-
-            m.mesh.visible = visible;
-            m.positionBuffer.update();
-        }
+        this.container.zIndex = -(dx*dx + dy*dy + dz*dz);
     }
 
     destroy() {
@@ -146,7 +104,6 @@ export class ModelInstance extends Object3D {
 
             this.container.removeChild(m.mesh);
             m.mesh.destroy();
-
         }
 
         this.layer.removeChild(this.container);

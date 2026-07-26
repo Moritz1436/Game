@@ -35,7 +35,8 @@ export function getHeight() {
         width: getWidth(), 
         height: getHeight(), 
         backgroundColor: 0x222222, 
-        antialias:false 
+        antialias:false,
+        powerPreference: "high-performance"
     });
 
     document.getElementById('game').appendChild(app.canvas);

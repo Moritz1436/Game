@@ -1,13 +1,13 @@
 import { Object3D } from "./Object3D.js";
-
+import { updateCameraUniforms } from "./CameraUniforms.js";
 
 export class Camera extends Object3D {
 
-    constructor(app) {
-        const pos3d = {x: 0, y: 100, z: 0};
+    constructor(app, pos3d) {
         const size3d = {x: 0, y: 0, z:0};
+        const pos = {x: pos3d.x, y: pos3d.y, z: pos3d.z}
         
-        super(pos3d, size3d);
+        super(pos, size3d);
 
         this.app = app;
         
@@ -18,6 +18,10 @@ export class Camera extends Object3D {
         //clipping
         this.near = 1;
         this.far = 4000;
+    }
+
+    update() {
+        updateCameraUniforms(this, this.app.renderer.width, this.app.renderer.height);
     }
 
     project(worldPos, width, height){
