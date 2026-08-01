@@ -2,6 +2,7 @@ import * as PIXI from "pixi.js";
 import * as APP from "../main.js";
 import { SceneStack } from "../Utils/SceneStack.js";
 import { DriveScene } from "../Road/DriveScene.js";
+import { GarageScene } from "../Garage/GarageScene.js";
 
 export class MapScene extends PIXI.Container {
 
@@ -21,6 +22,8 @@ export class MapScene extends PIXI.Container {
         background.width = APP.getWidth();
         background.height = APP.getHeight();
         this.addChild(background);
+
+        this.addChild(this.createButton());
     
         //put cities to the spots written in the city_data
         for (const obj of this.city_obj.cities) {
@@ -65,6 +68,61 @@ export class MapScene extends PIXI.Container {
     
             this.addChild(img);
         }
+    }
+
+    createButton() {
+        const button = new PIXI.Container();
+
+        // Hintergrund
+        const bg = new PIXI.Graphics();
+
+        bg.roundRect(0, 0, 200, 60, 10);
+
+        bg.fill({
+            color: 0x3b82f6
+        });
+
+        button.addChild(bg);
+
+        // Text
+        const text = new PIXI.Text({
+            text: "Garage",
+            style: {
+                fontFamily: "Arial",
+                fontSize: 24,
+                fill: 0xffffff
+            }
+        });
+
+        text.anchor.set(0.5);
+        text.position.set(100, 30);
+
+        button.addChild(text);
+
+        // Interaktiv machen
+        button.eventMode = "static";
+        button.cursor = "pointer";
+
+        // Hover
+        button.on("pointerover", () => {
+            bg.tint = 0xdddddd;
+        });
+
+        button.on("pointerout", () => {
+            bg.tint = 0xffffff;
+        });
+
+        // Klick
+        button.on("pointerdown", async () => {
+            const scene = await GarageScene.create(this.app);
+            SceneStack.pushScene(this.app, scene);
+        });
+
+        // Position
+        button.position.set(this.app.renderer.width * 0.8, this.app.renderer.height * 0.8);
+
+        // Zum Container hinzufügen
+        return button;
     }
 
     handleCityClick() {

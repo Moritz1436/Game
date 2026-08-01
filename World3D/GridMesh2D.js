@@ -1,6 +1,6 @@
 import * as PIXI from "pixi.js";
 import { Object3D } from "./Object3D.js"
-import { createGpuProjectShader } from "./GpuProjectShader.js";
+import { createGpuProjectShader } from "../Shaders/GpuProjectShader.js";
 import { createGeometry3D } from "./Geometry3DUtils.js"
 
 // 1 rectangular Mesh internally subdevided into many rectangles 
@@ -123,7 +123,7 @@ export class GridMesh2D extends Object3D {
     update(app, cam) {
 
         //  DEBUG DRAW BORDER ARROUND MESHES
-        if (window.DEBUG.enabled && window.DEBUG.showMeshes && visible) {
+        if (window.DEBUG.enabled && window.DEBUG.showMeshes) {
             const w = app.renderer.width;
             const h = app.renderer.height;
 

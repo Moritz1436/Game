@@ -242,43 +242,49 @@ def z_up_to_y_up(points):
 MIME_EXT = {'image/jpeg': 'jpg', 'image/png': 'png'}
 
 
-def resolve_texture(gltf, glb_bin_chunk, base_dir, material_index,
+def resolve_material_info(gltf, glb_bin_chunk, base_dir, material_index,
                      texture_dir, out_dir, mesh_label):
     if material_index is None:
-        return None
+        return None, [1.0, 1.0, 1.0, 1.0], 1.0, 1.0
     material = gltf.get('materials', [])[material_index]
     pbr = material.get('pbrMetallicRoughness', {})
+
+    base_color_factor = pbr.get('baseColorFactor', [1.0, 1.0, 1.0, 1.0])
+    metallic = pbr.get('metallicFactor', 1.0)
+    roughness = pbr.get('roughnessFactor', 1.0)
+
     tex_ref = pbr.get('baseColorTexture')
     if tex_ref is None:
-        return None
+        return None, base_color_factor, metallic, roughness
 
     texture = gltf['textures'][tex_ref['index']]
     image_index = texture.get('source')
     if image_index is None:
-        return None
+        return None, base_color_factor, metallic, roughness
     image = gltf['images'][image_index]
+
 
     if 'uri' in image:
         uri = image['uri']
         if uri.startswith('data:'):
-            # embedded data-uri image -> extract to a file
             header, b64data = uri.split(',', 1)
             mime = header.split(';')[0].replace('data:', '')
             ext = MIME_EXT.get(mime, 'bin')
             raw = base64.b64decode(b64data)
-            return _write_texture(raw, ext, texture_dir, out_dir, mesh_label)
-        # external file reference -> keep as given, just re-prefix the folder
+            path = _write_texture(raw, ext, texture_dir, out_dir, mesh_label)
+            return path, base_color_factor, metallic, roughness
         filename = os.path.basename(uri)
-        return f"{texture_dir.rstrip('/')}/{filename}"
+        path = f"{texture_dir.rstrip('/')}/{filename}"
+        return path, base_color_factor, metallic, roughness
 
-    # image stored in a bufferView inside the binary chunk
     bv = gltf['bufferViews'][image['bufferView']]
     buffer_bytes = get_buffer_bytes(gltf, glb_bin_chunk, bv['buffer'], base_dir)
     start = bv.get('byteOffset', 0)
     raw = buffer_bytes[start: start + bv['byteLength']]
     mime = image.get('mimeType', 'image/png')
     ext = MIME_EXT.get(mime, 'bin')
-    return _write_texture(raw, ext, texture_dir, out_dir, mesh_label)
+    path = _write_texture(raw, ext, texture_dir, out_dir, mesh_label)
+    return path, base_color_factor, metallic, roughness
 
 
 def _write_texture(raw_bytes, ext, texture_dir, out_dir, mesh_label):
@@ -360,13 +366,17 @@ def convert_primitive(gltf, glb_bin_chunk, base_dir, primitive, world_matrix,
     idx = triangulate_indices(idx, primitive.get('mode', 4))
     triangle_count = len(idx) // 3
 
-    texture = resolve_texture(
+    texture, base_color, metallic, roughness = resolve_material_info(
         gltf, glb_bin_chunk, base_dir, primitive.get('material'),
         texture_dir, out_dir, mesh_label
     )
 
     return {
+        "name": mesh_label,
         "texture": texture,
+        "baseColor": [round(float(c), 4) for c in base_color],
+        "metallic": round(float(metallic), 4),
+        "roughness": round(float(roughness), 4),
         "vertices": [round(float(v), 6) for v in positions.flatten().tolist()],
         "uvs": [round(float(v), 6) for v in uvs.flatten().tolist()],
         "indices": [int(i) for i in idx],
@@ -388,7 +398,10 @@ def convert(input_path, output_path, texture_dir='assets/models', apply_transfor
     out_dir = os.path.dirname(os.path.abspath(output_path)) or '.'
     gltf, glb_bin_chunk = read_glb(input_path)
 
+    asset_name = os.path.splitext(os.path.basename(output_path))[0]
+
     meshes_out = []
+    sockets_out = []
     mesh_counter = 0
 
     def visit(node_index, parent_matrix):
@@ -400,7 +413,7 @@ def convert(input_path, output_path, texture_dir='assets/models', apply_transfor
         if 'mesh' in node:
             mesh = gltf['meshes'][node['mesh']]
             for prim_i, primitive in enumerate(mesh.get('primitives', [])):
-                label = f"{mesh.get('name', 'mesh')}_{mesh_counter}_{prim_i}"
+                label = f"{node.get('name', mesh.get('name', 'mesh'))}_{prim_i}"
                 entry = convert_primitive(
                     gltf, glb_bin_chunk, base_dir, primitive, world,
                     texture_dir, out_dir, label, apply_transform,
@@ -409,6 +422,29 @@ def convert(input_path, output_path, texture_dir='assets/models', apply_transfor
                 if entry is not None:
                     meshes_out.append(entry)
             mesh_counter += 1
+
+        else:
+            #Empty-Node without Mesh, called "socket_<typ>[_<suffix>]" -> socket
+            # "socket_tire_FL" -> name="tire_FL", type="tire"
+            # "socket_spoiler" -> name="spoiler", type="spoiler"
+            name = node.get('name', '')
+            if name.startswith('socket_'):
+                translation = world[:3, 3].copy()
+                if source_z_up:
+                    translation = z_up_to_y_up(translation.reshape(1, 3))[0]
+
+                type_and_suffix = name[len('socket_'):]
+                socket_type = type_and_suffix.split('_')[0]
+
+                sockets_out.append({
+                    "name": name,
+                    "type": socket_type,
+                    "pos": {
+                        "x": round(float(translation[0]), 6),
+                        "y": round(float(translation[1]), 6),
+                        "z": round(float(translation[2]), 6),
+                    }
+                })
 
         for child in node.get('children', []):
             visit(child, world)
@@ -431,7 +467,7 @@ def convert(input_path, output_path, texture_dir='assets/models', apply_transfor
                 if entry is not None:
                     meshes_out.append(entry)
 
-    result = {"meshes": meshes_out}
+    result = {"name": asset_name, "meshes": meshes_out, "sockets": sockets_out}
     with open(output_path, 'w') as f:
         json.dump(result, f, indent=4)
 

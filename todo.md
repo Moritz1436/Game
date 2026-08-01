@@ -6,6 +6,11 @@ MapScene:
     - restructure code into a class that extends PIXI.Container with a static func create for 
         async init work and constructor for construction of the view
 
+Rendering:
+    - get overlays/uis over the 3d world stuff (might have to separate both renderers) (in both garageScene and DriveScene)
+
+HTML:
+    - might go to fullscreen idk
 
 DriveScene:
     - forest background something
@@ -24,7 +29,9 @@ DriveScene:
     - street has curves and ground not always being flat -> little elevations
 
 GarageScene:
-    - create it
+    - Environtment world walls
+    - many more car parts and colors
+    - work on overlay
 
 LoadingScreen:
     - before the game starts to load CarPieceModels and ObjectModels (forrest on the sides)

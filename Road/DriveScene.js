@@ -141,7 +141,8 @@ export class DriveScene extends PIXI.Container {
         this.label = "DriveScene";
 
         this.camPos3dStart = {x: 0, y: 100, z: 0};
-        this.camera = new Camera(app, this.camPos3dStart);
+        const camRot = { x: -0.15, y: 0, z: 0 };
+        this.camera = new Camera(app, this.camPos3dStart, camRot);
 
         //world units movement per second
         this.speedX = 250;

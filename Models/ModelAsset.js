@@ -6,7 +6,9 @@ export class ModelAsset {
 
     constructor(data) {
 
+        this.name = data.name;
         this.meshes = [];
+        this.sockets = data.sockets ?? [];
 
         let minX = Infinity;
         let minY = Infinity;
@@ -19,11 +21,15 @@ export class ModelAsset {
         for (const mesh of data.meshes) {
 
             this.meshes.push({
+                name: mesh.name,
                 vertices: mesh.vertices,
                 uvs: mesh.uvs,
                 indices: mesh.indices,
                 texture: mesh.texture,
-                normals: mesh.normals ?? null
+                normals: mesh.normals ?? null,
+                baseColor: mesh.baseColor ?? [1, 1, 1, 1],
+                metallic: mesh.metallic ?? 1.0,
+                roughness: mesh.roughness ?? 1.0,
             });
 
             const v = mesh.vertices;

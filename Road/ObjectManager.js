@@ -77,18 +77,6 @@ export class ObjectManager {
                 this.unloadChunk(id);
             }
         }
-
-        // update objects
-        for (const chunk of this.loadedChunks.values()) {
-            for (const obj of chunk.objects) {
-                if (obj.instance !== null){
-                    obj.instance.update(
-                        this.app,
-                        this.camera
-                    );
-                }
-            }
-        }
     }
 
     //gets id of a random asset

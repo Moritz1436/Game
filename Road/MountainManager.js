@@ -15,6 +15,8 @@ export class MountainManager {
             "assets/mountains.png"
         );
 
+        this.horizonSpriteOffset = 50;
+
         this.sprite.anchor.set(0.5, 1);
 
         layer.addChild(this.sprite);
@@ -74,14 +76,14 @@ export class MountainManager {
         const movement = this.cam.pos3d.x * 0.05;
 
         this.sprite.x = width * 0.5 - movement;
-        this.sprite.y = horizonY + this.cam.horizonSpriteOffset;
+        this.sprite.y = horizonY + this.horizonSpriteOffset;
 
         this.sprite.width = width * 1.1;
-        this.sprite.height = horizonY + this.cam.horizonSpriteOffset;
+        this.sprite.height = horizonY + this.horizonSpriteOffset;
 
         //fog transition
         this.fog.x = width * 0.5;
-        this.fog.y = horizonY + this.cam.horizonSpriteOffset;
+        this.fog.y = horizonY + this.horizonSpriteOffset;
 
         this.fog.width = width;
         this.fog.height = 120;

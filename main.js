@@ -16,7 +16,8 @@ window.DEBUG = {
     showMeshes: false,
     meshes: 0,
     triangles: 0,
-    speedHack: false
+    speedHack: false,
+    showCarBounds: false
 }
 
 export function getWidth() {
@@ -36,8 +37,13 @@ export function getHeight() {
         height: getHeight(), 
         backgroundColor: 0x222222, 
         antialias:false,
-        powerPreference: "high-performance"
+        powerPreference: "high-performance",
+        depth: true
     });
+
+    const gl = app.renderer.gl;
+    gl.enable(gl.DEPTH_TEST);
+    gl.depthFunc(gl.LEQUAL);
 
     document.getElementById('game').appendChild(app.canvas);
 
@@ -103,6 +109,12 @@ function setupDebug(app) {
     showMeshesToggle.checked = false;
     showMeshesToggle.addEventListener("change", (e) => {
         window.DEBUG.showMeshes = e.target.checked;
+    });
+
+    const showCarBoundsToggle = document.getElementById("showCarBoundsToggle");
+    showCarBoundsToggle.checked = false;
+    showCarBoundsToggle.addEventListener("change", (e) => {
+        window.DEBUG.showCarBounds = e.target.checked;
     });
 
     speedToggle.checked = false;
