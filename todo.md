@@ -7,10 +7,11 @@ MapScene:
         async init work and constructor for construction of the view
 
 Rendering:
-    - get overlays/uis over the 3d world stuff (might have to separate both renderers) (in both garageScene and DriveScene)
+    - maybe get some kind of lightsource so car_lights can shine a little
 
 HTML:
     - might go to fullscreen idk
+    - save and load settings
 
 DriveScene:
     - forest background something
@@ -31,7 +32,8 @@ DriveScene:
 GarageScene:
     - Environtment world walls
     - many more car parts and colors
-    - work on overlay
+    - work on overlay -> do parts and colors section
+    - store car config globally
 
 LoadingScreen:
     - before the game starts to load CarPieceModels and ObjectModels (forrest on the sides)

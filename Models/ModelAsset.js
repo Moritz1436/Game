@@ -9,6 +9,7 @@ export class ModelAsset {
         this.name = data.name;
         this.meshes = [];
         this.sockets = data.sockets ?? [];
+        this.requiredSocketTypes = data.requiredSocketTypes ?? [];
 
         let minX = Infinity;
         let minY = Infinity;

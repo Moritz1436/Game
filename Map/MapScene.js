@@ -3,17 +3,20 @@ import * as APP from "../main.js";
 import { SceneStack } from "../Utils/SceneStack.js";
 import { DriveScene } from "../Road/DriveScene.js";
 import { GarageScene } from "../Garage/GarageScene.js";
+import { UIScene } from "../Utils/UIScene.js";
 
-export class MapScene extends PIXI.Container {
+export class MapScene extends UIScene {
+
+    static async create(app) {
+        return new MapScene(app);
+    }
 
     constructor(app) {
-        super();
+        super(app, "MapScene");
+        this.uiScene = new PIXI.Container();
 
-        this.app = app;
         this.city_obj = APP.city_data;
-
-        this.label = "MapScene";
-        this.eventMode = "static";
+        this.uiScene.eventMode = "static";
     
         // Background
         const tex = PIXI.Texture.from("assets/landscape.png");
@@ -21,9 +24,9 @@ export class MapScene extends PIXI.Container {
         const background = new PIXI.Sprite(tex);
         background.width = APP.getWidth();
         background.height = APP.getHeight();
-        this.addChild(background);
+        this.uiScene.addChild(background);
 
-        this.addChild(this.createButton());
+        this.uiScene.addChild(this.createButton());
     
         //put cities to the spots written in the city_data
         for (const obj of this.city_obj.cities) {
@@ -49,8 +52,9 @@ export class MapScene extends PIXI.Container {
                 shadow.alpha = 0;
             });
     
-            img.on("pointertap", () => {
-                this.handleCityClick();
+            img.on("pointertap", async () => {
+                const scene = await GotoCityScene.create(this.app, this.city_obj);
+                SceneStack.pushScene(scene, false);
             });
     
             const shadow = new PIXI.Graphics();
@@ -64,9 +68,9 @@ export class MapScene extends PIXI.Container {
             shadow.position = img.position.clone();
             shadow.alpha = 0;
     
-            this.addChildAt(shadow, 0);
+            this.uiScene.addChildAt(shadow, 0);
     
-            this.addChild(img);
+            this.uiScene.addChild(img);
         }
     }
 
@@ -115,7 +119,7 @@ export class MapScene extends PIXI.Container {
         // Klick
         button.on("pointerdown", async () => {
             const scene = await GarageScene.create(this.app);
-            SceneStack.pushScene(this.app, scene);
+            SceneStack.pushScene(scene);
         });
 
         // Position
@@ -125,20 +129,25 @@ export class MapScene extends PIXI.Container {
         return button;
     }
 
-    handleCityClick() {
-        const scene = this.createGotoCityScene();
-        SceneStack.pushScene(this.app, scene, false);
-    }
-
     destroy() {
-        //to be implemented
     }
 
+}
 
-    createGotoCityScene() {
-        const c = new PIXI.Container();
-        c.label = "GotoCityScene";
-        c.eventMode = "static";
+
+class GotoCityScene extends UIScene {
+
+    static async create(app, c) {
+        return new GotoCityScene(app, c);
+    }
+
+    constructor(app, city) {
+        super(app, "GotoCityScene");
+        this.uiScene = new PIXI.Container();
+
+        this.uiScene.eventMode = "static";
+
+        this.city_obj = city;
 
         const onKeyDown = (e) => {
             if (e.key === "Escape") {
@@ -147,7 +156,7 @@ export class MapScene extends PIXI.Container {
         };
 
         window.addEventListener("keydown", onKeyDown);
-        c.on("removed", () => {
+        this.uiScene.on("removed", () => {
             window.removeEventListener("keydown", onKeyDown);
         });
 
@@ -175,7 +184,7 @@ export class MapScene extends PIXI.Container {
 
         blocker.eventMode = "static";
 
-        c.addChild(blocker);
+        this.uiScene.addChild(blocker);
 
         const panel = new PIXI.Container();
         panel.position.set(x, y);
@@ -325,7 +334,7 @@ export class MapScene extends PIXI.Container {
             SceneStack.popScene(this.app);
 
             const driveScene = await DriveScene.create(this.app, 2400);
-            SceneStack.pushScene(this.app, driveScene);
+            SceneStack.pushScene(driveScene);
         });
 
 
@@ -342,9 +351,8 @@ export class MapScene extends PIXI.Container {
         panel.addChild(travelButton);
         panel.addChild(backButton);
 
-        c.addChild(panel);
-
-        return c;
+        this.uiScene.addChild(panel);
     }
 
+    destroy() {}
 }

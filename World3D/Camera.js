@@ -5,10 +5,8 @@ import { eulerToMat3, mat3TransformVec3, mat3Transpose } from "./Utils/Mat3Utils
 export class Camera extends Object3D {
 
     constructor(app, pos3d, rot3d) {
-        const size3d = {x: 0, y: 0, z:0};
-        const pos = {x: pos3d.x, y: pos3d.y, z: pos3d.z}
-        
-        super(pos, size3d);
+        const size3d = {x: 0, y: 0, z:0};        
+        super({...pos3d}, size3d);
 
         this.app = app;
         

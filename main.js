@@ -40,10 +40,15 @@ export function getHeight() {
         powerPreference: "high-performance",
         depth: true
     });
+    app.ticker.remove(app.render, app);
 
     const gl = app.renderer.gl;
     gl.enable(gl.DEPTH_TEST);
     gl.depthFunc(gl.LEQUAL);
+
+    app.ticker.add(() => {
+        SceneStack.render(app);
+    });
 
     document.getElementById('game').appendChild(app.canvas);
 
@@ -68,11 +73,10 @@ export function getHeight() {
     await initializeRender();
 
     // Start Scene
-    const mapScene = new MapScene(app);
-    SceneStack.pushScene(app, mapScene);
+    const mapScene = await MapScene.create(app);
+    SceneStack.pushScene(mapScene);
 
 })();
-
 
 export let city_data = null;
 

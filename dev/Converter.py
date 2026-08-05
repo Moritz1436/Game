@@ -403,6 +403,16 @@ def convert(input_path, output_path, texture_dir='assets/models', apply_transfor
     meshes_out = []
     sockets_out = []
     mesh_counter = 0
+    used_mesh_names = {}
+
+    def make_unique(label):
+        if label not in used_mesh_names:
+            used_mesh_names[label] = 0
+            return label
+        else:
+            count = used_mesh_names[label] + 1
+            used_mesh_names[label] = count
+            return f"{label}_{count}"
 
     def visit(node_index, parent_matrix):
         nonlocal mesh_counter
@@ -412,11 +422,14 @@ def convert(input_path, output_path, texture_dir='assets/models', apply_transfor
 
         if 'mesh' in node:
             mesh = gltf['meshes'][node['mesh']]
+            mesh_name = mesh.get('name', 'mesh')
+
             for prim_i, primitive in enumerate(mesh.get('primitives', [])):
-                label = f"{node.get('name', mesh.get('name', 'mesh'))}_{prim_i}"
+                label = node.get('name', mesh_name)
+                unique_label = make_unique(label)
                 entry = convert_primitive(
                     gltf, glb_bin_chunk, base_dir, primitive, world,
-                    texture_dir, out_dir, label, apply_transform,
+                    texture_dir, out_dir, unique_label, apply_transform,
                     source_z_up=source_z_up
                 )
                 if entry is not None:
@@ -467,7 +480,8 @@ def convert(input_path, output_path, texture_dir='assets/models', apply_transfor
                 if entry is not None:
                     meshes_out.append(entry)
 
-    result = {"name": asset_name, "meshes": meshes_out, "sockets": sockets_out}
+    required_socket_types = list()
+    result = {"name": asset_name, "meshes": meshes_out, "sockets": sockets_out, "requiredSocketTypes": required_socket_types}
     with open(output_path, 'w') as f:
         json.dump(result, f, indent=4)
 

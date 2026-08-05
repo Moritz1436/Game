@@ -10,6 +10,12 @@ function rgbaToHex(rgba) {
     return (r << 16) | (g << 8) | b;
 }
 
+// only bases have sockets.
+// objects pivot points:
+// base: center
+// tires: x,y: center, z: min bounds
+// spoiler: 
+
 // config shape:
 // {
 //   base: "sedan_base",
@@ -41,25 +47,61 @@ export class Car extends Object3D {
         this.importConfig(config);
     }
 
+    _getPosition() {
+        const myBounds = this.rootPiece.getWorldAABB();
+        const yOffset = -myBounds.min.y * this.scale;
+        return { ...this.pos3d, y: yOffset };
+    }
+
     importConfig(config) {
-        const MIRRORED_SOCKETS = new Set(["socket_tire_FR", "socket_tire_RR"]);
+        const MIRRORED_SOCKETS = new Set(["socket_tire_fr", "socket_tire_rr"]);
 
         if (this.rootPiece) this.rootPiece.destroy();
 
         const baseAsset = this.assetManager.getAssetByName(config.base);
-        this.rootPiece = new CarPieceInstance(baseAsset, this.layer, { ...this.pos3d }, { x: 0, y: 0, z: 0 }, this.scale);
-        this.rootPiece.updateWorldTransform();
-        this.applyPieceColors(this.rootPiece, config.colors?.["base"]);
-
+        this.rootPiece = new CarPieceInstance(baseAsset, this.layer, { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }, this.scale);
+        
         for (const [socketName, partName] of Object.entries(config.parts ?? {})) {
             const partAsset = this.assetManager.getAssetByName(partName);
             if (!partAsset) continue;
-
-            const mirrored = MIRRORED_SOCKETS.has(socketName);
+            
+            const mirrored = MIRRORED_SOCKETS.has(socketName.toLowerCase());
             const piece = new CarPieceInstance(partAsset, this.layer, { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }, 1, mirrored);
             this.rootPiece.attachChild(socketName, piece);
             this.applyPieceColors(piece, config.colors?.[socketName]);
         }
+        
+        this.rootPiece.updateWorldTransform();
+        
+        const pos = this._calculateGroundPosition();
+        this.rootPiece.setLocalPosition(pos);
+        this.pos3d = pos;
+
+        this.applyPieceColors(this.rootPiece, config.colors?.["base"]);
+    }
+
+    _calculateGroundPosition() {
+        if (!this.rootPiece) {
+            return { x: 0, y: 0, z: 0 };
+        }
+        
+        const myBounds = this.rootPiece.getWorldAABB();
+        const yOffset = -myBounds.min.y;
+
+        return {
+            x: this.pos3d?.x ?? 0,
+            y: yOffset,
+            z: this.pos3d?.z ?? 0
+        };
+    }
+    
+    repositionToGround() {
+        if (!this.rootPiece) return;
+        this.rootPiece.updateWorldTransform();
+        
+        const pos = this._calculateGroundPosition();
+        this.rootPiece.setLocalPosition(pos);
+        this.pos3d = pos;
     }
 
     exportConfig() {

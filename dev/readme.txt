@@ -24,6 +24,26 @@ Auto Game:
 - landschaft: statisches bild, städte an festen positionen, aber als bilder reinladen für zoom und schatten background
 - beim ersten mal spielen in den fahren screen direkt kommen und dann auf die karte
 
+Garage customizable:
+	visuals:
+	- reifen -> felge, bremse, gummi
+	- tieferlegen
+	- base
+	- spoiler
+	- lippe
+	- exaust
+	- antenne
+	- scheinwerfer (vorne und hinten) - wie zum fick soll ich das machen, vllt socket.type = "headlights_bmw" | "headlights_lambo"
+	- unterbodenbeleuchtung
+	nonvisual:
+	- speed -> gewicht, turbo, beschleunigung
+	- engine
+	- kühler (temperatur beachten beim fahren usw)
+	- extra-boost
+	- sound?
+
+
+
 
 später:
 

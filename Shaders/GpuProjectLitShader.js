@@ -110,6 +110,8 @@ void main() {
                 + diffuseColor * NdotL * uDiffuseStrength
                 + specularColor * spec;
 
+    color = pow(color, vec3(1.0 / 2.2)); // gamma correction
+
     gl_FragColor = vec4(color, tex.a * uBaseColor.a);
 }`;
 

@@ -1,37 +1,33 @@
 
 
 //handles the scenes of the app
-//each scene (Pixi.Container) has its own name stored in scene.label
+//each scene (UIScene) has its own name stored in scene.label
 export class SceneStack {
 
-    //PIXI.Container
+    //Objects extending UIScene
     static sceneStack = [];
 
-    ///@param app - Pixi Application
-    ///@param scene - scene to be added (Pixi.Container required)
+    ///@param scene - scene to be added (extends UIScene)
     ///@param replace - the current top scene will be removed and the new 
     //                  scene will be added to the top of the stack, otherwise the 
     //                  new scene will just be put ontop of the stack
-    static pushScene(app, scene, replace = true) {
+    static pushScene(scene, replace = true) {
 
         if (replace && this.sceneStack.length > 0) {
             const oldScene = this.sceneStack.pop();
 
-            app.stage.removeChild(oldScene);
             oldScene.destroy();
         }
 
         this.sceneStack.push(scene);
-        app.stage.addChild(scene);
     }
 
-    static popScene(app) {
+    static popScene() {
         if (this.sceneStack.length === 0) {
             return null;
         }
         const oldScene = this.sceneStack.pop();
 
-        app.stage.removeChild(oldScene);
         oldScene.destroy();
         return oldScene;
     }
@@ -52,6 +48,24 @@ export class SceneStack {
         }
 
         return scene.label;
+    }
+
+    static render(app) {
+        const gl = app.renderer.gl;
+        let c = true;
+
+        for (const scene of this.sceneStack) {
+            if (scene.world3dScene != null) {
+                gl.enable(gl.DEPTH_TEST);
+                app.renderer.render({container: scene.world3dScene, clear: c});
+                c = false;
+            }
+            if (scene.uiScene != null) {
+                gl.disable(gl.DEPTH_TEST);
+                app.renderer.render({container: scene.uiScene, clear: c});
+                c = false;
+            }
+        }
     }
 
 }

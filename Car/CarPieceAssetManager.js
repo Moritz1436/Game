@@ -19,7 +19,7 @@ export class CarPieceAssetManager {
 
     getAssetByName(name) {
         const asset = this.assetsByName.get(name);
-        if (!asset) console.warn(`CarPieceAssetManager: no asset named "${name}"`);
+        if (!asset) return null;
         return asset;
     }
 

@@ -9,6 +9,7 @@ import { ObjectManager } from "./ObjectManager.js";
 import { OverlayManager } from "./OverlayManager.js";
 import { SceneStack } from "../Utils/SceneStack.js";
 import { MapScene } from "../Map/MapScene.js";
+import { UIScene } from "../Utils/UIScene.js";
 
 /* Note:
     use https://itch.io/game-assets/free/tag-3d/tag-tree for more models
@@ -47,7 +48,7 @@ import { MapScene } from "../Map/MapScene.js";
 */
 
 //Scene when driving from 1 city to another
-export class DriveScene extends PIXI.Container {
+export class DriveScene extends UIScene {
 
     static assets = null;
 
@@ -69,58 +70,58 @@ export class DriveScene extends PIXI.Container {
         DriveScene.assets = {
             trees: {
                 high: [
-                    await ModelLoader.load("assets/models/Tree1_high.json"),
-                    await ModelLoader.load("assets/models/Tree2_high.json"),
-                    await ModelLoader.load("assets/models/Tree3_high.json"),
-                    await ModelLoader.load("assets/models/Tree4_high.json"),
-                    await ModelLoader.load("assets/models/Tree5_high.json")
+                    await ModelLoader.load("assets/models/nature/Tree1_high.json"),
+                    await ModelLoader.load("assets/models/nature/Tree2_high.json"),
+                    await ModelLoader.load("assets/models/nature/Tree3_high.json"),
+                    await ModelLoader.load("assets/models/nature/Tree4_high.json"),
+                    await ModelLoader.load("assets/models/nature/Tree5_high.json")
                 ],
                 medium: [
-                    await ModelLoader.load("assets/models/Tree1_med.json"),
-                    await ModelLoader.load("assets/models/Tree2_med.json"),
-                    await ModelLoader.load("assets/models/Tree3_med.json"),
-                    await ModelLoader.load("assets/models/Tree4_med.json"),
-                    await ModelLoader.load("assets/models/Tree5_med.json")
+                    await ModelLoader.load("assets/models/nature/Tree1_med.json"),
+                    await ModelLoader.load("assets/models/nature/Tree2_med.json"),
+                    await ModelLoader.load("assets/models/nature/Tree3_med.json"),
+                    await ModelLoader.load("assets/models/nature/Tree4_med.json"),
+                    await ModelLoader.load("assets/models/nature/Tree5_med.json")
                 ],
                 low: [
-                    await ModelLoader.load("assets/models/Tree1_low.json"),
-                    await ModelLoader.load("assets/models/Tree2_low.json"),
-                    await ModelLoader.load("assets/models/Tree3_low.json"),
-                    await ModelLoader.load("assets/models/Tree4_low.json"),
-                    await ModelLoader.load("assets/models/Tree5_low.json")
+                    await ModelLoader.load("assets/models/nature/Tree1_low.json"),
+                    await ModelLoader.load("assets/models/nature/Tree2_low.json"),
+                    await ModelLoader.load("assets/models/nature/Tree3_low.json"),
+                    await ModelLoader.load("assets/models/nature/Tree4_low.json"),
+                    await ModelLoader.load("assets/models/nature/Tree5_low.json")
                 ]
             },
             rocks: {
                 high: [
-                    await ModelLoader.load("assets/models/Rock1_high.json"),
-                    await ModelLoader.load("assets/models/Rock2_high.json"),
-                    await ModelLoader.load("assets/models/Rock3_high.json")
+                    await ModelLoader.load("assets/models/nature/Rock1_high.json"),
+                    await ModelLoader.load("assets/models/nature/Rock2_high.json"),
+                    await ModelLoader.load("assets/models/nature/Rock3_high.json")
                 ],
                 medium: [
-                    await ModelLoader.load("assets/models/Rock1_med.json"),
-                    await ModelLoader.load("assets/models/Rock2_med.json"),
-                    await ModelLoader.load("assets/models/Rock3_med.json")
+                    await ModelLoader.load("assets/models/nature/Rock1_med.json"),
+                    await ModelLoader.load("assets/models/nature/Rock2_med.json"),
+                    await ModelLoader.load("assets/models/nature/Rock3_med.json")
                 ]
             },
             grass: {
                 high: [
-                    await ModelLoader.load("assets/models/Grass1_high.json"),
-                    await ModelLoader.load("assets/models/Grass2_high.json"),
-                    await ModelLoader.load("assets/models/Grass3_high.json")
+                    await ModelLoader.load("assets/models/nature/Grass1_high.json"),
+                    await ModelLoader.load("assets/models/nature/Grass2_high.json"),
+                    await ModelLoader.load("assets/models/nature/Grass3_high.json")
                 ]
             },
             bushes: {
                 high: [
-                    await ModelLoader.load("assets/models/Bush1_high.json"),
-                    await ModelLoader.load("assets/models/Bush2_high.json"),
-                    await ModelLoader.load("assets/models/Bush3_high.json"),
-                    await ModelLoader.load("assets/models/Bush4_high.json")
+                    await ModelLoader.load("assets/models/nature/Bush1_high.json"),
+                    await ModelLoader.load("assets/models/nature/Bush2_high.json"),
+                    await ModelLoader.load("assets/models/nature/Bush3_high.json"),
+                    await ModelLoader.load("assets/models/nature/Bush4_high.json")
                 ],
                 medium: [
-                    await ModelLoader.load("assets/models/Bush1_med.json"),
-                    await ModelLoader.load("assets/models/Bush2_med.json"),
-                    await ModelLoader.load("assets/models/Bush3_med.json"),
-                    await ModelLoader.load("assets/models/Bush4_med.json")
+                    await ModelLoader.load("assets/models/nature/Bush1_med.json"),
+                    await ModelLoader.load("assets/models/nature/Bush2_med.json"),
+                    await ModelLoader.load("assets/models/nature/Bush3_med.json"),
+                    await ModelLoader.load("assets/models/nature/Bush4_med.json")
                 ]
             }
         }
@@ -131,14 +132,12 @@ export class DriveScene extends PIXI.Container {
     ///@param app - PixiJs Application
     ///@param distance - how many meters the user has to drive to the next city
     constructor(app, distance) {
-        super();
+        super(app, "DriveScene");
+        this.uiScene = new PIXI.Container();
+        this.world3dScene = new PIXI.Container();
 
         const scaledDistance = distance * 20;
         this.distance = scaledDistance;
-
-        this.app = app;
-
-        this.label = "DriveScene";
 
         this.camPos3dStart = {x: 0, y: 100, z: 0};
         const camRot = { x: -0.15, y: 0, z: 0 };
@@ -155,13 +154,14 @@ export class DriveScene extends PIXI.Container {
         this.overlayLayer = new PIXI.Container();
         this.debugLayer = new PIXI.Container();
 
+        this.world3dScene.addChild(this.mountainLayer);
+        this.world3dScene.addChild(this.groundLayer);
+        this.world3dScene.addChild(this.roadLayer);
+        this.world3dScene.addChild(this.objectLayer);
+        
         //Background -> Foreground
-        this.addChild(this.mountainLayer);
-        this.addChild(this.groundLayer);
-        this.addChild(this.roadLayer);
-        this.addChild(this.objectLayer);
-        this.addChild(this.overlayLayer);
-        this.addChild(this.debugLayer);
+        this.uiScene.addChild(this.debugLayer);
+        this.uiScene.addChild(this.overlayLayer);
 
         //road
         this.road = new RoadManager(
@@ -209,13 +209,9 @@ export class DriveScene extends PIXI.Container {
         this.objects.destroy();
         this.overlay.destroy();
         this.ground.destroy();
-
-        super.destroy({
-            children: true
-        });
     }
 
-    update(ticker) {
+    async update(ticker) {
         //frame indipendant
         const dt = ticker.deltaMS / 1000;
 
@@ -237,7 +233,8 @@ export class DriveScene extends PIXI.Container {
         if (distanceCovered >= this.distance){
             console.log("finish");
             
-            SceneStack.pushScene(this.app, new MapScene(this.app));
+            const scene = await MapScene.create(this.app);
+            SceneStack.pushScene(scene);
             return;
         }
 

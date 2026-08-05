@@ -39,7 +39,8 @@ import { ModelAsset } from "../Models/ModelAsset.js";
       "type": "spoiler",
       "pos": { "x": 0.0, "y": 0.62, "z": -1.58 }
     }
-  ]
+  ],
+  "requiredSocketTypes": [ "tire" ]
 }
 
 */

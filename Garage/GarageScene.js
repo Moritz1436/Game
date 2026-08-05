@@ -8,17 +8,24 @@ import { CarManager } from "../Car/CarManager.js";
 import { GarageOverlay } from "./GarageOverlay.js";
 import { getAABBCorners } from "../World3D/Utils/BoundsUtils.js";
 import { AABBDebugMesh } from "../World3D/AABBDebugMesh.js";
+import { UIScene } from "../Utils/UIScene.js";
+import { MapScene } from "../Map/MapScene.js";
+import { SceneStack } from "../Utils/SceneStack.js";
+import { CarConfigState } from "../Car/CarConfigState.js";
 
 /* Car Piece Data
     Todo: LOD
 
     base_sedan.json:    1830 Tris | 7 Meshes
     tire_sport.json:    1412 Tris | 4 Meshes
+    tire_1.json:        1308 Tris | 7 Meshes
+    tire_2.json:        1464 Tris | 6 Meshes
+    tire_3.json:        1136 Tris | 5 Meshes
     spoiler_big.json:    224 Tris | 1 Meshes
 
 */
 
-export class GarageScene extends PIXI.Container {
+export class GarageScene extends UIScene {
 
     static assetManager = null;
 
@@ -26,63 +33,84 @@ export class GarageScene extends PIXI.Container {
         GarageScene.assetManager = new CarPieceAssetManager();
 
         await this.assetManager.loadAllAssets([
-            { type: "base",    name: "sedan_base",    path: "assets/models/base_sedan.json" },
-            { type: "tire",    name: "tire_sport",    path: "assets/models/tire_sport.json" },
-            { type: "spoiler", name: "spoiler_big",   path: "assets/models/spoiler_big.json" },
+            //{ type: "base",    name: "base_sedan",      path: "assets/models/car/base_sedan.json" },
+            { type: "base",    name: "base_audi",      path: "assets/models/car/base_audi.json" },
+            { type: "base",    name: "base_bmw",      path: "assets/models/car/base_bmw.json" },
+            { type: "base",    name: "base_ford",      path: "assets/models/car/base_ford.json" },
+            { type: "base",    name: "base_lambo",      path: "assets/models/car/base_lambo.json" },
+            { type: "base",    name: "base_mazda",      path: "assets/models/car/base_mazda.json" },
+            { type: "base",    name: "base_mustang",      path: "assets/models/car/base_mustang.json" },
+            { type: "tire",    name: "tire_wide",      path: "assets/models/car/tire_wide.json" },
+            { type: "tire",    name: "tire_narrow",      path: "assets/models/car/tire_narrow.json" },
+            { type: "tire",    name: "tire_sport",      path: "assets/models/car/tire_sport.json" },
+            { type: "tire",    name: "tire_1",          path: "assets/models/car/tire_1.json" },
+            { type: "tire",    name: "tire_2",          path: "assets/models/car/tire_2.json" },
+            { type: "tire",    name: "tire_3",          path: "assets/models/car/tire_3.json" },
+            { type: "spoiler", name: "spoiler_big",     path: "assets/models/car/spoiler_big.json" },
+            { type: "spoiler", name: "spoiler_bmw",     path: "assets/models/car/spoiler_bmw.json" },
+            { type: "spoiler", name: "spoiler_lambo",     path: "assets/models/car/spoiler_lambo.json" }
         ]);
 
         return new GarageScene(app);
     }
 
     constructor(app) {
-        super();
+        super(app, "GarageScene");
+        this.uiScene = new PIXI.Container();
+        this.world3dScene = new PIXI.Container();
 
-        this.app = app;
-        this.label = "GarageScene";
-
-        const camPos = { x: 0, y: 25, z: 0 };
-        const camRot = { x: 0, y: 0, z: 0 };
-        this.camera = new Camera(app, camPos, camRot);
-        const target = {x: 0, y: 5, z: -100}
-        this.orbitController = new OrbitCameraController(this.camera, target, 100);
+        this.camera = new Camera(app, null, null);
+        const target = {x: 0, y: 0, z: 0};
+        this.orbitController = new OrbitCameraController(this.camera, target, 150);
 
         this.groundLayer = new PIXI.Container();
         this.carLayer = new PIXI.Container();
         this.debugLayer = new PIXI.Container();
 
-
         this.ground = this.createGround();
-        this.overlay = new GarageOverlay(this.app, GarageScene.assetManager, {
-            onExit: () => { console.log("Exit Garage"); },
-            onPartVariantSelect: (type, pieceName) => { console.log(`selected ${type} ${pieceName}`); }
-        });
-
-        //background -> foreground
-        this.addChild(this.groundLayer);
-        this.addChild(this.carLayer);
-        this.addChild(this.debugLayer);
-        this.addChild(this.overlay);
-
-        this.overlay.setMoney(6122451);
-
         this.aabbDebug = null;
-
-        this.carManager = new CarManager(this.carLayer, GarageScene.assetManager);
-        this.car = this.carManager.spawnPlayerCar({
-            base: "sedan_base",
+        
+        // ---- game state: current car config, independent of the rendered Car ----
+        this.carConfig = new CarConfigState({
+            base: "base_bmw",
             parts: {
-                socket_tire_FL: "tire_sport",
-                socket_tire_FR: "tire_sport",
-                socket_tire_RL: "tire_sport",
-                socket_tire_RR: "tire_sport",
-                socket_spoiler: "spoiler_big",
+                socket_tire_FL: "tire_wide",
+                socket_tire_FR: "tire_wide",
+                socket_tire_RL: "tire_wide",
+                socket_tire_RR: "tire_wide",
+                socket_spoiler: "spoiler_bmw",
             },
             colors: {
-                "base": {
-                    "Car": 0x00FF00,
-                },
-            }
-        }, target, 30);
+                base: { front_lights: 0xf4e972 },
+            },
+        });
+
+        this.overlay = new GarageOverlay(this.app, GarageScene.assetManager, this.carConfig, {
+            onExit: async () => { 
+                const scene = await MapScene.create(this.app);
+                SceneStack.pushScene(scene);
+            },
+            onChange: (carConfigState) => {
+                carConfigState.applyTo(this.car);
+                this.car.repositionToGround();
+            },
+        });
+        this.overlay.setMoney(6122451);
+        
+        this.carManager = new CarManager(this.carLayer, GarageScene.assetManager);
+        const config = this.carConfig.exportConfig();
+        const baseAsset = GarageScene.assetManager.getAssetByName(config.base);
+
+        const scale = 30;
+        this.car = this.carManager.spawnPlayerCar(config, target, scale);
+
+
+        this.world3dScene.addChild(this.groundLayer);
+        this.world3dScene.addChild(this.carLayer);
+        this.world3dScene.addChild(this.debugLayer);
+
+        //Background -> Foreground
+        this.uiScene.addChild(this.overlay);
 
         app.ticker.add(this.update, this);
     }
@@ -115,10 +143,6 @@ export class GarageScene extends PIXI.Container {
         this.app.ticker.remove(this.update, this);
 
         this.ground.destroy(this.groundLayer);
-
-        super.destroy({
-            children: true
-        });
     }
 
     createGround() {
@@ -134,11 +158,11 @@ export class GarageScene extends PIXI.Container {
             {
                 x: 0,
                 y: 0,
-                z: -100
+                z: 0
             },
             {
-                x: 100,
-                y: 100
+                x: 150,
+                y: 150
             }
         );
         this.groundLayer.addChild(grid.mesh);
