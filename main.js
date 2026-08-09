@@ -2,6 +2,10 @@ import * as PIXI from "pixi.js";
 import { SceneStack } from "./Utils/SceneStack.js";
 import { Input } from "./Utils/Input.js";
 import { MapScene } from "./Map/MapScene.js";
+import { GAMESTATE } from "./GameState.js";
+import { LoadingScreen } from "./LoadingScreen.js";
+import { ModelLoader } from "./Models/ModelLoader.js";
+import { GLOBAL_MANIFEST, loadGlobalAssetEntry, DEFAULT_CAR_CONFIG } from "./GlobalAssets.js";
 
 /////////// GLOBALS //////////////
 const resolution = 9/16;
@@ -70,34 +74,9 @@ export function getHeight() {
     // App Init
     setupDebug(app);
     Input.init();
-    await initializeRender();
 
-    // Start Scene
-    const mapScene = await MapScene.create(app);
-    SceneStack.pushScene(mapScene);
-
+    await boot(app);
 })();
-
-export let city_data = null;
-
-///@brief loads neccessary textures (needed since pixiv8) and old MapScene stuff
-async function initializeRender() {
-    
-    ///@deprecated MapScene stuff
-    const response = await fetch("/assets/city_locations.json");
-    city_data = await response.json();
-
-    for (const obj of city_data.cities) {
-        await PIXI.Assets.load("/assets/" + obj.texture);
-    }
-
-    //static images
-    await PIXI.Assets.load([
-        //MapScene background map
-        "assets/landscape.png"
-    ]);
-
-}
 
 
 function setupDebug(app) {
@@ -146,4 +125,41 @@ function setupDebug(app) {
         meshCounter.textContent = `MESHES: ${window.DEBUG.meshes}`;
         triangleCounter.textContent = `TRIANGLES: ${window.DEBUG.triangles}`;
     });
+}
+
+
+async function boot(app) {
+    const loadingScreen = new LoadingScreen(app);
+    SceneStack.pushScene(loadingScreen);
+
+    //car config
+    const initialConfig = DEFAULT_CAR_CONFIG;
+    GAMESTATE.updateCarConfig(initialConfig);
+
+    //car pieces
+    await loadingScreen.run(
+        GLOBAL_MANIFEST.map((entry, i) => async () => {
+            await loadGlobalAssetEntry(entry);
+        }),
+        null,
+        GLOBAL_MANIFEST.map(e => `Loading ${e.name}`)
+    );
+
+    //static images
+    const imgs = [
+        //{ name: "Landscape", path: "assets/landscape.png" },
+        //{ name: "Garage", path: "assets/garage.png" },
+        //{ name: "Menu", path: "assets/menu.png" }
+    ];
+    await loadingScreen.run(
+        imgs.map(img => async () => {
+            await PIXI.Assets.load(img.path);
+        }),
+        null,
+        imgs.map(() => "Loading Images")
+    );
+
+    // Start Scene
+    const mapScene = await MapScene.create(app, loadingScreen);
+    SceneStack.pushScene(mapScene);
 }

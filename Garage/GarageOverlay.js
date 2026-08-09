@@ -1,4 +1,5 @@
 import * as PIXI from "pixi.js";
+import { GAMESTATE } from "../GameState";
 
 
 
@@ -211,7 +212,6 @@ export class GarageOverlay extends PIXI.Container {
         this.carConfigState = carConfigState;
         this.callbacks = callbacks;
 
-        this.money = 0;
         this.selectedType = null;          // aktuell geöffneter Kategorien‑Typ (oder null)
         this.currentBaseAsset = null;      // Base‑Objekt für schnellen Zugriff
 
@@ -255,12 +255,8 @@ export class GarageOverlay extends PIXI.Container {
 
     destroy(options) {
         window.removeEventListener("resize", this._resizeHandler);
+        this.removeMoneyListener();
         super.destroy(options);
-    }
-
-    setMoney(value) {
-        this.money = value;
-        this.moneyText.text = `$ ${value.toLocaleString()}`;
     }
 
     // -----------------------------------------------------------------
@@ -278,6 +274,10 @@ export class GarageOverlay extends PIXI.Container {
 
         this.moneyText = pixelText("$ 0", 16, COLORS.gold);
         this.moneyPanel.addChild(this.moneyText);
+        this.moneyText.text = `$ ${GAMESTATE.money.toLocaleString()}`;
+        this.removeMoneyListener = GAMESTATE.onChange((cat, state) => {
+            if (cat == "money") this.moneyText.text = `$ ${state.money.toLocaleString()}`;
+        });
 
         this.exitButton = new PIXI.Container();
         this.exitButton.eventMode = "static";

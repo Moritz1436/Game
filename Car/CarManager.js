@@ -34,6 +34,10 @@ export class CarManager {
         return this.playerCar.checkCollision(this.enemyCars);
     }
 
-    // No render/update call here on purpose - your central camera/render
-    // system already handles drawing every ModelInstance each frame.
+    destroy() {
+        this.playerCar?.destroy();
+        for (const car of this.enemyCars) car.destroy();
+        this.playerCar = null;
+        this.enemyCars = [];
+    }
 }

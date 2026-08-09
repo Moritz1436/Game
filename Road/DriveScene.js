@@ -10,6 +10,10 @@ import { OverlayManager } from "./OverlayManager.js";
 import { SceneStack } from "../Utils/SceneStack.js";
 import { MapScene } from "../Map/MapScene.js";
 import { UIScene } from "../Utils/UIScene.js";
+import { LoadingScreen } from "../LoadingScreen.js";
+import { CarManager } from "../Car/CarManager.js";
+import { GAMESTATE } from "../GameState.js";
+import { globalAssetManager, DEFAULT_CAR_CONFIG } from "../GlobalAssets.js";
 
 /* Note:
     use https://itch.io/game-assets/free/tag-3d/tag-tree for more models
@@ -52,79 +56,116 @@ export class DriveScene extends UIScene {
 
     static assets = null;
 
-    static async create(app, distance) {
+    static async create(app, distance, existingLoadingScreen = null) {
+        const loadingScreen = existingLoadingScreen ?? new LoadingScreen(app);
+        if (!existingLoadingScreen) SceneStack.pushScene(loadingScreen);
 
         //static images that the scene uses
-        await PIXI.Assets.load([
-            //StreetSegment texture
+        const imageAssets = [
             "assets/street.png",
-
-            //background Mountains
             "assets/mountains.png",
-
-            //ground
             "assets/ground.png"
-        ]);
+        ];
 
-        //load assets
-        DriveScene.assets = {
+        const modelAssets = {
             trees: {
                 high: [
-                    await ModelLoader.load("assets/models/nature/Tree1_high.json"),
-                    await ModelLoader.load("assets/models/nature/Tree2_high.json"),
-                    await ModelLoader.load("assets/models/nature/Tree3_high.json"),
-                    await ModelLoader.load("assets/models/nature/Tree4_high.json"),
-                    await ModelLoader.load("assets/models/nature/Tree5_high.json")
+                    "Tree1_high",
+                    "Tree2_high",
+                    "Tree3_high",
+                    "Tree4_high",
+                    "Tree5_high"
                 ],
                 medium: [
-                    await ModelLoader.load("assets/models/nature/Tree1_med.json"),
-                    await ModelLoader.load("assets/models/nature/Tree2_med.json"),
-                    await ModelLoader.load("assets/models/nature/Tree3_med.json"),
-                    await ModelLoader.load("assets/models/nature/Tree4_med.json"),
-                    await ModelLoader.load("assets/models/nature/Tree5_med.json")
+                    "Tree1_med",
+                    "Tree2_med",
+                    "Tree3_med",
+                    "Tree4_med",
+                    "Tree5_med"
                 ],
                 low: [
-                    await ModelLoader.load("assets/models/nature/Tree1_low.json"),
-                    await ModelLoader.load("assets/models/nature/Tree2_low.json"),
-                    await ModelLoader.load("assets/models/nature/Tree3_low.json"),
-                    await ModelLoader.load("assets/models/nature/Tree4_low.json"),
-                    await ModelLoader.load("assets/models/nature/Tree5_low.json")
+                    "Tree1_low",
+                    "Tree2_low",
+                    "Tree3_low",
+                    "Tree4_low",
+                    "Tree5_low"
                 ]
             },
             rocks: {
                 high: [
-                    await ModelLoader.load("assets/models/nature/Rock1_high.json"),
-                    await ModelLoader.load("assets/models/nature/Rock2_high.json"),
-                    await ModelLoader.load("assets/models/nature/Rock3_high.json")
+                    "Rock1_high",
+                    "Rock2_high",
+                    "Rock3_high"
                 ],
                 medium: [
-                    await ModelLoader.load("assets/models/nature/Rock1_med.json"),
-                    await ModelLoader.load("assets/models/nature/Rock2_med.json"),
-                    await ModelLoader.load("assets/models/nature/Rock3_med.json")
+                    "Rock1_med",
+                    "Rock2_med",
+                    "Rock3_med"
                 ]
             },
             grass: {
                 high: [
-                    await ModelLoader.load("assets/models/nature/Grass1_high.json"),
-                    await ModelLoader.load("assets/models/nature/Grass2_high.json"),
-                    await ModelLoader.load("assets/models/nature/Grass3_high.json")
+                    "Grass1_high",
+                    "Grass2_high",
+                    "Grass3_high"
                 ]
             },
             bushes: {
                 high: [
-                    await ModelLoader.load("assets/models/nature/Bush1_high.json"),
-                    await ModelLoader.load("assets/models/nature/Bush2_high.json"),
-                    await ModelLoader.load("assets/models/nature/Bush3_high.json"),
-                    await ModelLoader.load("assets/models/nature/Bush4_high.json")
+                    "Bush1_high",
+                    "Bush2_high",
+                    "Bush3_high",
+                    "Bush4_high"
                 ],
                 medium: [
-                    await ModelLoader.load("assets/models/nature/Bush1_med.json"),
-                    await ModelLoader.load("assets/models/nature/Bush2_med.json"),
-                    await ModelLoader.load("assets/models/nature/Bush3_med.json"),
-                    await ModelLoader.load("assets/models/nature/Bush4_med.json")
+                    "Bush1_med",
+                    "Bush2_med",
+                    "Bush3_med",
+                    "Bush4_med"
                 ]
             }
+        };
+
+        DriveScene.assets = {
+            trees: { high: [], medium: [], low: [] },
+            rocks: { high: [], medium: [] },
+            grass: { high: [] },
+            bushes: { high: [], medium: [] }
+        };
+
+        const tasks = [];
+        const labels = [];
+
+        // Static images
+        for (const path of imageAssets) {
+            tasks.push(async () => {
+                await PIXI.Assets.load(path);
+            });
+
+            labels.push(`Loading Images`);
         }
+
+        // Models
+        for (const [category, levels] of Object.entries(modelAssets)) {
+            for (const [level, models] of Object.entries(levels)) {
+                for (const modelName of models) {
+                    const path = `assets/models/nature/${modelName}.json`;
+
+                    tasks.push(async () => {
+                        const model = await ModelLoader.load(path);
+                        DriveScene.assets[category][level].push(model);
+                    });
+
+                    labels.push(`Loading ${modelName}`);
+                }
+            }
+        }
+
+        await loadingScreen.run(
+            tasks,
+            null,
+            labels
+        );
 
         return new DriveScene(app, distance);
     }
@@ -151,6 +192,7 @@ export class DriveScene extends UIScene {
         this.groundLayer = new PIXI.Container();
         this.roadLayer = new PIXI.Container();
         this.objectLayer = new PIXI.Container();
+        this.carLayer = new PIXI.Container();
         this.overlayLayer = new PIXI.Container();
         this.debugLayer = new PIXI.Container();
 
@@ -158,10 +200,18 @@ export class DriveScene extends UIScene {
         this.world3dScene.addChild(this.groundLayer);
         this.world3dScene.addChild(this.roadLayer);
         this.world3dScene.addChild(this.objectLayer);
+        this.world3dScene.addChild(this.carLayer);
         
         //Background -> Foreground
         this.uiScene.addChild(this.debugLayer);
         this.uiScene.addChild(this.overlayLayer);
+
+        this.carManager = new CarManager(this.carLayer, globalAssetManager);
+        const playerCarConfig = GAMESTATE.ownedCars[GAMESTATE.activeCarIndex] ?? DEFAULT_CAR_CONFIG;
+        const startPos = { x: 0, y: 0, z: this.camPos3dStart.z - 200 };
+
+        this.playerCar = this.carManager.spawnPlayerCar(playerCarConfig, startPos, 30);
+        this.playerCar.rotateRoot("-z");
 
         //road
         this.road = new RoadManager(
@@ -209,24 +259,27 @@ export class DriveScene extends UIScene {
         this.objects.destroy();
         this.overlay.destroy();
         this.ground.destroy();
+        this.carManager.destroy();
     }
 
     async update(ticker) {
         //frame indipendant
         const dt = ticker.deltaMS / 1000;
 
+        let delta = {x: 0, y: 0, z: 0};
+
         // Move Camera based on Inputs
         if (Input.isKeyDown("KeyW")){
-            this.camera.pos3d.z -= this.speedZ * dt;
+            delta.z -= this.speedZ * dt;
         }
         if (Input.isKeyDown("KeyS")){
-            this.camera.pos3d.z += this.speedZ * dt;
+            delta.z += this.speedZ * dt;
         }
         if (Input.isKeyDown("KeyD")){
-            this.camera.pos3d.x += this.speedX * dt;
+            delta.x += this.speedX * dt;
         }
         if (Input.isKeyDown("KeyA")){
-            this.camera.pos3d.x -= this.speedX * dt;
+            delta.x -= this.speedX * dt;
         }
 
         const distanceCovered = this.camPos3dStart.z - this.camera.pos3d.z;
@@ -237,6 +290,13 @@ export class DriveScene extends UIScene {
             SceneStack.pushScene(scene);
             return;
         }
+
+        //move objects
+        this.camera.pos3d.x += delta.x;
+        this.camera.pos3d.y += delta.y;
+        this.camera.pos3d.z += delta.z;
+        this.carManager.playerCar.move(delta);
+
 
         //update mountains
         this.mountains.update();

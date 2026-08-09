@@ -1,7 +1,7 @@
 import { Object3D } from "../World3D/Object3D.js";
 import { CarPieceInstance } from "./CarPieceInstance.js";
 import { aabbOverlap } from "../World3D/Utils/BoundsUtils.js";
-
+import { mat3Mul } from "../World3D/Utils/Mat3Utils.js";
 
 function rgbaToHex(rgba) {
     const r = Math.round(rgba[0] * 255);
@@ -78,6 +78,69 @@ export class Car extends Object3D {
         this.pos3d = pos;
 
         this.applyPieceColors(this.rootPiece, config.colors?.["base"]);
+    }
+
+    ///@brief rotates the rootpiece, making it face this direction
+    ///@param direction: "x", "-x", "y", "-y", "z", "-z", saying the matrix is already facing x
+    rotateRoot(direction) {
+        if (!this.rootPiece) return;
+        let rot;
+
+        switch (direction) {
+            case "x":
+                rot = [
+                    1, 0, 0,
+                    0, 1, 0,
+                    0, 0, 1
+                ];
+                break;
+
+            case "-x":
+                rot = [
+                    -1, 0, 0,
+                    0, 1, 0,
+                    0, 0, -1
+                ];
+                break;
+
+            case "y":
+                rot = [
+                    0, -1, 0,
+                    1,  0, 0,
+                    0,  0, 1
+                ];
+                break;
+
+            case "-y":
+                rot = [
+                    0, 1, 0,
+                    -1, 0, 0,
+                    0, 0, 1
+                ];
+                break;
+
+            case "z":
+                rot = [
+                    0, 0, 1,
+                    0, 1, 0,
+                    -1, 0, 0
+                ];
+                break;
+
+            case "-z":
+                rot = [
+                    0, 0, -1,
+                    0, 1,  0,
+                    1, 0,  0
+                ];
+                break;
+
+            default:
+                throw new Error(`Unknown direction: ${direction}`);
+        }
+
+        this.rootPiece.localRotationMatrix = mat3Mul(this.rootPiece.localRotationMatrix, rot);
+        this.rootPiece.updateWorldTransform();
     }
 
     _calculateGroundPosition() {

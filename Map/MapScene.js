@@ -4,10 +4,43 @@ import { SceneStack } from "../Utils/SceneStack.js";
 import { DriveScene } from "../Road/DriveScene.js";
 import { GarageScene } from "../Garage/GarageScene.js";
 import { UIScene } from "../Utils/UIScene.js";
+import { LoadingScreen } from "../LoadingScreen.js";
 
 export class MapScene extends UIScene {
 
-    static async create(app) {
+    static city_data = null;
+
+    static async create(app, existingLoadingScreen = null) {
+        const loadingScreen = existingLoadingScreen ?? new LoadingScreen(app);
+        if (!existingLoadingScreen) SceneStack.pushScene(loadingScreen);
+
+        await loadingScreen.run(
+            [
+                //@deprecated city stuff
+                async () => {
+                    const response = await fetch("/assets/city_locations.json");
+                    MapScene.city_data = await response.json();
+                },
+
+                async () => {
+                    for (const obj of MapScene.city_data.cities) {
+                        await PIXI.Assets.load("/assets/" + obj.texture);
+                    }
+                },
+
+                //static images
+                async () => {
+                    await PIXI.Assets.load("assets/landscape.png");
+                }
+            ],
+            null,
+            [
+                "Loading city data",
+                "Loading city textures",
+                "Loading map"
+            ]
+        );
+
         return new MapScene(app);
     }
 
@@ -15,7 +48,7 @@ export class MapScene extends UIScene {
         super(app, "MapScene");
         this.uiScene = new PIXI.Container();
 
-        this.city_obj = APP.city_data;
+        this.city_obj = MapScene.city_data;
         this.uiScene.eventMode = "static";
     
         // Background

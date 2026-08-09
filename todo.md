@@ -14,12 +14,18 @@ HTML:
     - save and load settings
 
 DriveScene:
+    - own Car:
+        - random movements so its not fix infront of cam
+        - base speed
+        - add max x coords
+        - turning wheels sidewise when side drive
+        - turning wheels in general
+        - wind effect?
     - forest background something
     - better ground texture
     - clouds behind mountain
     - improve transition between horizon and mountainsSprite
     - add other cars (spawning, collisions, movement (only z), etc.)
-    - add your own car (custom imported 3d model that is put together from pieces equipped by the player)
     - finish somehow (drive into a city??)
     - overlay Layer for distance, speed, boost, compass etc.
     - cam movement bounds in x direction
