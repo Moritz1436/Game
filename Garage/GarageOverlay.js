@@ -130,6 +130,14 @@ export class GarageOverlay extends PIXI.Container {
         this.colorPickerTarget = null; // { type, meshName, baseAsset }
 
         this.eventMode = "static";
+        this.isPointerOverOverlay = false;
+        this.on("pointerover", () => {
+            this.isPointerOverOverlay = true;
+        });
+
+        this.on("pointerout", () => {
+            this.isPointerOverOverlay = false;
+        });
 
         this._buildTopBar();
         this._buildModeButtons();

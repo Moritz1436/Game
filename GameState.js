@@ -10,7 +10,16 @@ export class GameState {
         this.ownedCars = [];
         this.activeCarIndex = 0;
 
+        //add current city here later
+
+        this.showTips = false;
+
         this._listeners = new Set();
+    }
+
+    setShowTips(v) {
+        this.showTips = v;
+        this._notify("showTips");
     }
 
     getCurrentCarConfig() {
@@ -61,6 +70,7 @@ export class GameState {
         this.money = data.money ?? 0;
         this.ownedCars = data.ownedCars ?? [];
         this.activeCarIndex = data.activeCarIndex ?? 0;
+        this.showTips = data.showTips;
         this._notify("all");
     }
 
@@ -73,6 +83,7 @@ export class GameState {
             money: 5000,
             ownedCars: [ DEFAULT_CAR_CONFIG ],
             activeCarIndex: 0,
+            showTips: true,
         }
 
         this.importSave(data);

@@ -6,7 +6,7 @@ import { GroundManager } from "./GroundManager.js";
 import { MountainManager } from "./MountainManager.js";
 import { ModelLoader } from "../Models/ModelLoader.js";
 import { ObjectManager } from "./ObjectManager.js";
-import { OverlayManager } from "./OverlayManager.js";
+import { DriveOverlay } from "./DriveOverlay.js";
 import { SceneStack } from "../Utils/SceneStack.js";
 import { MapScene } from "../Map/MapScene.js";
 import { UIScene } from "../Utils/UIScene.js";
@@ -228,6 +228,15 @@ export class DriveScene extends UIScene {
         this.playerCar.repositionToGround();
         this.carVisualPos.y = this.playerCar.pos3d.y;
 
+        this.boost_value = this.playerCar.properties.boost_value;
+        this.boost_duration = this.playerCar.properties.boost_time;
+        this.baseSpeed = this.playerCar.properties.speed;
+        // Lazy speed
+        this.targetSpeed = this.baseSpeed;
+        this.currentSpeed = this.baseSpeed;
+        this.speedFollowSpeed = 6.0;
+        this.throttle = 0.0;
+
         //steering
         this.baseRot = this.playerCar.getRotation();
         this.rot_tire_FR = this.playerCar.getRotation("socket_tire_FR");
@@ -272,9 +281,13 @@ export class DriveScene extends UIScene {
             DriveScene.assets
         );
 
-        this.overlay = new OverlayManager(app, this.overlayLayer);
-        this.displaySpeed = 0;
-        this.speedUpdateTimer = 0;
+        this.driveOverlay = new DriveOverlay(app, this.boost_duration, {
+            onExit: async () => {
+                const scene = await MapScene.create(this.app);
+                SceneStack.pushScene(scene);
+            }
+        });
+        this.uiScene.addChild(this.driveOverlay);
 
         //base background
         const groundLength = scaledDistance + 3200;
@@ -293,7 +306,7 @@ export class DriveScene extends UIScene {
         this.road.destroy();
         this.mountains.destroy();
         this.objects.destroy();
-        this.overlay.destroy();
+        this.driveOverlay.destroy();
         this.ground.destroy();
         this.carManager.destroy();
     }
@@ -302,14 +315,30 @@ export class DriveScene extends UIScene {
         //frame indipendant
         const dt = ticker.deltaMS / 1000;
 
-        const speedZ = this.playerCar.properties.speed;
+        // -1 = S, 0 = nichts, +1 = W
+        let targetThrottle = 0;
+        
+        if (Input.isKeyDown("KeyW")) {
+            targetThrottle = 1;
+        } else if (Input.isKeyDown("KeyS")) {
+            targetThrottle = -1;
+        }
+        
+        const throttleFollow = 1 - Math.exp(-this.speedFollowSpeed * dt);
+        this.throttle += (targetThrottle - this.throttle) * throttleFollow;
+        const speedFollow = 1 - Math.exp(-this.speedFollowSpeed * dt);
+
+
+        this.currentSpeed += (this.targetSpeed - this.currentSpeed) * speedFollow;
+        const speedZ = this.currentSpeed;
+
         const baseSpeedZ = speedZ * 0.6;
-        const additionalSpeedZ = speedZ * 0.4;
+        const additionalSpeedZ = speedZ * 0.4 * this.throttle;
         const speedX = speedZ * 0.25;
 
         const newCamPos = { x: this.camera.pos3d.x, y: this.camera.pos3d.y, z: this.camera.pos3d.z };
         const oldCamPosZ = this.camera.pos3d.z;
-        newCamPos.z -= baseSpeedZ * dt;
+        newCamPos.z -= (baseSpeedZ + additionalSpeedZ) * dt;
 
         let steeringInput = 0;
 
@@ -368,12 +397,6 @@ export class DriveScene extends UIScene {
         //DEBUG END
 
         // Move Camera based on Inputs
-        if (Input.isKeyDown("KeyW")){
-            newCamPos.z -= additionalSpeedZ * dt;
-        }
-        if (Input.isKeyDown("KeyS")){
-            newCamPos.z += additionalSpeedZ * dt;
-        }
         if (Input.isKeyDown("KeyD")){
             steeringInput -= 1;
             newCamPos.x += speedX * dt;
@@ -455,13 +478,27 @@ export class DriveScene extends UIScene {
         //update ground
         this.ground.update(this.app, this.camera);
 
-        this.speedUpdateTimer += dt;
-        if (this.speedUpdateTimer >= 0.5) {
-            this.displaySpeed = Math.abs((oldCamPosZ - this.camera.pos3d.z) / dt);
-            this.speedUpdateTimer = 0;
-        }
+        //Boost
+        const boostingNow = Input.isKeyDown("Space");
 
-        this.overlay.update(distanceCovered, this.displaySpeed);
+        if (boostingNow && !this._wasBoostingLastFrame) {
+            const boosting = this.driveOverlay.onBoostStart(() => {
+                this.targetSpeed = this.baseSpeed;
+            });
+
+            if (boosting) this.targetSpeed = this.baseSpeed * this.boost_value;
+        } else if (!boostingNow && this._wasBoostingLastFrame) {
+            this.driveOverlay.onBoostEnd();
+        }
+        this._wasBoostingLastFrame = boostingNow;
+
+        //Overlay
+        this.driveOverlay.update(dt);
+        this.driveOverlay.setDistance(this.distance - distanceCovered);
+        const speed = Math.abs((oldCamPosZ - this.camera.pos3d.z) / dt) / 10;
+        const rpm = 800 + (speed / 300) * 6500;
+        this.driveOverlay.setSpeed(speed);
+        this.driveOverlay.setRPM(rpm);
 
         this.camera.update();
     }

@@ -46,7 +46,7 @@ export const DEFAULT_CAR_CONFIG = {
     },
     properties: {
         speed: 800,
-        boost_time: 0,
-        boost_value: 1
+        boost_time: 2,
+        boost_value: 1.2
     }
 };

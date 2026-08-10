@@ -20,6 +20,6 @@ export class OrbitCameraController {
 
     rotate(deltaYaw, deltaPitch) {
         this.yaw += deltaYaw;
-        this.pitch = Math.max(-1.2, Math.min(1.2, this.pitch + deltaPitch));
+        this.pitch = Math.max(0, Math.min(1.2, this.pitch + deltaPitch));
     }
 }

@@ -46,6 +46,33 @@ export class GarageScene extends UIScene {
         const target = {x: 0, y: 0, z: 0};
         this.orbitController = new OrbitCameraController(this.camera, target, 150);
 
+        // Camera drag
+        this.isDraggingCamera = false;
+        this.lastPointerX = 0;
+        this.lastPointerY = 0;
+
+        this._onPointerMove = this.onCameraDrag.bind(this);
+        this._onPointerUp = this.onCameraDragEnd.bind(this);
+
+        this.dragLayer = new PIXI.Container();
+        this.dragLayer.eventMode = "static";
+
+        this.dragLayer.on("pointerdown", this.onCameraDragStart, this);
+        this.dragLayer.hitArea = null;
+        this._onResize = () => {
+            this.dragLayer.hitArea = new PIXI.Rectangle(
+                0,
+                0,
+                this.app.renderer.width,
+                this.app.renderer.height
+            );
+        }
+        this._onResize();
+        window.addEventListener("resize", this._onResize);
+
+        this._onWheel = this.onCameraWheel.bind(this);
+        window.addEventListener("wheel", this._onWheel, { passive: false });
+
         this.groundLayer = new PIXI.Container();
         this.carLayer = new PIXI.Container();
         this.debugLayer = new PIXI.Container();
@@ -77,6 +104,7 @@ export class GarageScene extends UIScene {
         this.world3dScene.addChild(this.debugLayer);
 
         //Background -> Foreground
+        this.uiScene.addChild(this.dragLayer);
         this.uiScene.addChild(this.overlay);
 
         app.ticker.add(this.update, this);
@@ -105,6 +133,9 @@ export class GarageScene extends UIScene {
     }
 
     destroy() {
+        this.onCameraDragEnd();
+        window.removeEventListener("resize", this._onResize);
+        window.removeEventListener("wheel", this._onWheel);
         this.app.ticker.remove(this.update, this);
 
         this.carManager.destroy();
@@ -112,6 +143,69 @@ export class GarageScene extends UIScene {
         this.ground.destroy(this.groundLayer);
 
         GAMESTATE.updateCarConfig(this.carConfig.exportConfig());
+    }
+
+    onCameraDragStart(event) {
+        this.isDraggingCamera = true;
+        this.overlay._closeOptions();
+
+        this.lastPointerX = event.clientX;
+        this.lastPointerY = event.clientY;
+
+        document.body.style.cursor = "grabbing";
+
+        window.addEventListener("pointermove", this._onPointerMove);
+        window.addEventListener("pointerup", this._onPointerUp);
+    }
+
+    onCameraDrag(event) {
+        if (!this.isDraggingCamera) return;
+
+        const x = event.clientX;
+        const y = event.clientY;
+
+        const dx = x - this.lastPointerX;
+        const dy = y - this.lastPointerY;
+
+        this.lastPointerX = x;
+        this.lastPointerY = y;
+
+        const horizontalSensitivity = 0.003;
+        const verticalSensitivity = 0.002;
+
+        this.orbitController.rotate(
+            dx * horizontalSensitivity,
+            dy * verticalSensitivity
+        );
+    }
+
+    onCameraDragEnd() {
+        if (!this.isDraggingCamera) return;
+
+        this.isDraggingCamera = false;
+
+        document.body.style.cursor = "";
+
+        window.removeEventListener("pointermove", this._onPointerMove);
+        window.removeEventListener("pointerup", this._onPointerUp);
+    }
+
+    
+    onCameraWheel(event) {
+        if (this.overlay.isPointerOverOverlay) {
+            return;
+        }
+
+        event.preventDefault();
+
+        const zoomSpeed = 0.2;
+
+        this.orbitController.distance += event.deltaY * zoomSpeed;
+
+        this.orbitController.distance = Math.max(
+            100,
+            Math.min(this.orbitController.distance, 300)
+        );
     }
 
     createGround() {

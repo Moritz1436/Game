@@ -22,7 +22,6 @@ DriveScene:
     - improve transition between horizon and mountainsSprite
     - add other cars (spawning, collisions, movement (only z), etc.)
     - finish somehow (drive into a city??)
-    - overlay Layer for distance, speed, boost, compass, close etc.
 
     LATER:
     - bioms (+ biom specific surrounding models)
@@ -33,5 +32,3 @@ GarageScene:
     - many more car parts and colors
     - better design for overlay
     - implement non visual settings. Cars properties like speed, boost_value, boost_time (indirect via engine, turbo)
-    - turn car via drag
-    - recolor icons on the side
