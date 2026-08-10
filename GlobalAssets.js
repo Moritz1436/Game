@@ -42,6 +42,11 @@ export const DEFAULT_CAR_CONFIG = {
         socket_spoiler: "spoiler_bmw",
     },
     colors: {
-        base: { front_lights: 0xf4e972 },
+        base: { front_lights: "0xf4e972" }
     },
+    properties: {
+        speed: 800,
+        boost_time: 0,
+        boost_value: 1
+    }
 };

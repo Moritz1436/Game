@@ -15,11 +15,6 @@ HTML:
 
 DriveScene:
     - own Car:
-        - random movements so its not fix infront of cam
-        - base speed
-        - add max x coords
-        - turning wheels sidewise when side drive
-        - turning wheels in general
         - wind effect?
     - forest background something
     - better ground texture
@@ -27,19 +22,16 @@ DriveScene:
     - improve transition between horizon and mountainsSprite
     - add other cars (spawning, collisions, movement (only z), etc.)
     - finish somehow (drive into a city??)
-    - overlay Layer for distance, speed, boost, compass etc.
-    - cam movement bounds in x direction
-    - Load all carPieceModels and Objects before the whole game inside a loadingscreen
+    - overlay Layer for distance, speed, boost, compass, close etc.
 
     LATER:
     - bioms (+ biom specific surrounding models)
     - street has curves and ground not always being flat -> little elevations
 
 GarageScene:
-    - Environtment world walls
+    - Environment world walls
     - many more car parts and colors
-    - work on overlay -> do parts and colors section
-    - store car config globally
-
-LoadingScreen:
-    - before the game starts to load CarPieceModels and ObjectModels (forrest on the sides)
+    - better design for overlay
+    - implement non visual settings. Cars properties like speed, boost_value, boost_time (indirect via engine, turbo)
+    - turn car via drag
+    - recolor icons on the side

@@ -1,4 +1,4 @@
-
+import { DEFAULT_CAR_CONFIG } from "./GlobalAssets.js";
 
 // Central, singleton gamestate. Scenes/UI read from this and call its
 // mutator methods instead of touching plain fields directly.
@@ -52,14 +52,30 @@ export class GameState {
     exportSave() {
         return {
             money: this.money,
-            ownedCars: this.ownedCars
+            ownedCars: this.ownedCars,
+            activeCarIndex: this.activeCarIndex
         };
     }
 
     importSave(data) {
         this.money = data.money ?? 0;
         this.ownedCars = data.ownedCars ?? [];
+        this.activeCarIndex = data.activeCarIndex ?? 0;
         this._notify("all");
+    }
+
+    //loads players gamestate from server (to be implemented) otherwise has a fallback, also used for new players
+    loadState() {
+        //get it from server
+
+        //fallback
+        const data = {
+            money: 5000,
+            ownedCars: [ DEFAULT_CAR_CONFIG ],
+            activeCarIndex: 0,
+        }
+
+        this.importSave(data);
     }
 }
 

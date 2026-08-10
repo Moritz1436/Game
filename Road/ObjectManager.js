@@ -27,16 +27,18 @@ export class ObjectManager {
         //loading distance in world units in x direction
         this.loadingDistanceX = 500;
 
-        this.objectsPerChunkPerSide = 50;
+        this.objectsPerChunkPerSide = 40;
 
         this.loadedChunks = new Map();
+        this.creationQueue = [];
+        this.maxCreationsPerFrame = 20;
     }
 
     update() {
-
         const currentChunk = Math.floor(
             -this.camera.pos3d.z / this.chunkLength
         );
+        this._currentChunkForPriority = currentChunk;
 
         // load chunks
         for (
@@ -54,28 +56,56 @@ export class ObjectManager {
             const chunk = this.loadedChunks.get(i);
 
             if (!chunk) {
-
                 this.loadChunk(i, wantedLOD);
             }
             else if (chunk.lod !== wantedLOD) {
-
                 this.destroyInstances(chunk);
-
                 chunk.lod = wantedLOD;
-
-                this.createInstances(chunk);
+                this.queueInstanceCreation(chunk);
             }
         }
 
         // remove chunks
         for (const id of this.loadedChunks.keys()) {
-
             if (
                 id < currentChunk - this.backChunks ||
                 id > currentChunk + this.frontChunks
             ) {
                 this.unloadChunk(id);
             }
+        }
+
+        this.processCreationQueue();
+    }
+
+    queueInstanceCreation(chunk) {
+        for (const obj of chunk.objects) {
+            this.creationQueue.push({ chunk, obj });
+        }
+    }
+
+    processCreationQueue() {
+        if (this.creationQueue.length === 0) return;
+
+        //sort list for priority (= closest to cam gets highest priority)
+        this.creationQueue.sort((a, b) => {
+            const distA = Math.abs(a.chunk.id - this._currentChunkForPriority);
+            const distB = Math.abs(b.chunk.id - this._currentChunkForPriority);
+            return distA - distB;
+        });
+
+        let count = 0;
+        while (count < this.maxCreationsPerFrame && this.creationQueue.length > 0) {
+            const { chunk, obj } = this.creationQueue.shift();
+
+            if (!this.loadedChunks.has(chunk.id)) continue;
+
+            const lod = this.getObjectLOD(obj.type, chunk.lod);
+            if (lod === null) { obj.instance = null; count++; continue; }
+
+            const asset = this.assets[obj.type][chunk.lod][obj.variant];
+            obj.instance = new ModelInstance(asset, this.layer, obj.pos3d, obj.scale);
+            count++;
         }
     }
 
@@ -211,33 +241,7 @@ export class ObjectManager {
         return "low";
     }
 
-    createInstances(chunk) {
-        for (const obj of chunk.objects) {
-            const lod = this.getObjectLOD(
-                obj.type,
-                chunk.lod
-            );
-
-            //object doesnt exist at that LOD
-            if (lod === null) {
-                obj.instance = null;
-                continue;
-            }
-
-            const asset = this.assets[obj.type][chunk.lod][obj.variant];
-
-            obj.instance = new ModelInstance(
-                asset,
-                this.layer,
-                obj.pos3d,
-                obj.scale
-            );
-        }
-    }
-
-
     destroyInstances(chunk) {
-
         for (const obj of chunk.objects) {
 
             if (obj.instance) {
@@ -245,6 +249,8 @@ export class ObjectManager {
                 obj.instance = null;
             }
         }
+
+        this.creationQueue = this.creationQueue.filter(entry => entry.chunk !== chunk);
     }
 
     loadChunk(id, lod) {
@@ -255,35 +261,25 @@ export class ObjectManager {
             objects.push(this.createObject(id, false));
         }
 
-        const chunk = {
-            id,
-            lod,
-            objects
-        };
-
-        this.createInstances(chunk);
+        const chunk = { id, lod, objects };
         this.loadedChunks.set(id, chunk);
+        this.queueInstanceCreation(chunk);
     }
 
     unloadChunk(id) {
-
         const chunk = this.loadedChunks.get(id);
-
-        if (!chunk) {
-            return;
-        }
+        if (!chunk) return;
 
         this.destroyInstances(chunk);
-
         this.loadedChunks.delete(id);
     }
 
     destroy() {
-
         for (const id of this.loadedChunks.keys()) {
             this.unloadChunk(id);
         }
 
         this.loadedChunks.clear();
+        this.creationQueue.length = 0;
     }
 }

@@ -10,6 +10,7 @@ export class CarConfigState {
             base: initialConfig.base,
             parts: { ...(initialConfig.parts ?? {}) },
             colors: structuredClone(initialConfig.colors ?? {}),
+            properties: initialConfig.properties ?? {}
         };
     }
 
@@ -52,6 +53,10 @@ export class CarConfigState {
     setMeshColor(pieceKey, meshName, colorHex) {
         if (!this.data.colors[pieceKey]) this.data.colors[pieceKey] = {};
         this.data.colors[pieceKey][meshName] = colorHex;
+    }
+
+    getMeshColor(pieceKey, meshName) {
+        return this.data.colors[pieceKey]?.[meshName] ?? null;
     }
 
     exportConfig() {

@@ -1,6 +1,5 @@
 import { CarPieceAsset } from "./CarPieceAsset.js";
 
-// manifest entries: { type, name, path }
 export class CarPieceAssetManager {
     constructor() {
         this.assetsByName = new Map();

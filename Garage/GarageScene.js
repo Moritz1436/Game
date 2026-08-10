@@ -7,7 +7,7 @@ import { CarPieceAssetManager } from "../Car/CarPieceAssetManager.js";
 import { CarManager } from "../Car/CarManager.js";
 import { GarageOverlay } from "./GarageOverlay.js";
 import { getAABBCorners } from "../World3D/Utils/BoundsUtils.js";
-import { AABBDebugMesh } from "../World3D/AABBDebugMesh.js";
+import { DebugOutline } from "../World3D/DebugOutline.js";
 import { UIScene } from "../Utils/UIScene.js";
 import { MapScene } from "../Map/MapScene.js";
 import { SceneStack } from "../Utils/SceneStack.js";
@@ -55,23 +55,21 @@ export class GarageScene extends UIScene {
         
         this.carConfig = new CarConfigState(GAMESTATE.getCurrentCarConfig());
 
-        this.overlay = new GarageOverlay(this.app, globalAssetManager, this.carConfig, {
-            onExit: async () => { 
-                const scene = await MapScene.create(this.app);
-                SceneStack.pushScene(scene);
-            },
-            onChange: (carConfigState) => {
-                carConfigState.applyTo(this.car);
-                this.car.repositionToGround();
-            },
-        });
-        
         this.carManager = new CarManager(this.carLayer, globalAssetManager);
         const config = this.carConfig.exportConfig();
         const baseAsset = globalAssetManager.getAssetByName(config.base);
-
+        
         const scale = 30;
         this.car = this.carManager.spawnPlayerCar(config, target, scale);
+
+
+        this.overlay = new GarageOverlay(this.app, globalAssetManager, this.car, this.carConfig, {
+            onExit: async (config) => {
+                GAMESTATE.updateCarConfig(config);
+                const scene = await MapScene.create(this.app);
+                SceneStack.pushScene(scene);
+            }
+        });
 
 
         this.world3dScene.addChild(this.groundLayer);
@@ -100,11 +98,9 @@ export class GarageScene extends UIScene {
         
         this.ground.update(this.app, this.camera);
         if (window.DEBUG.enabled && window.DEBUG.showCarBounds) {
-            this.drawDebug();
-        }
-        else if (this.aabbDebug) {
-            this.aabbDebug.destroy();
-            this.aabbDebug = null;
+            this.car.showDebugOutline(this.debugLayer);
+        } else {
+            this.car.hideDebugOutline();
         }
     }
 
@@ -142,14 +138,4 @@ export class GarageScene extends UIScene {
 
         return grid;
     }
-
-    drawDebug() {
-        if (this.aabbDebug == null) {
-            this.aabbDebug = new AABBDebugMesh(this.debugLayer, [1, 0, 0]);
-        }
-        const aabb = this.car.rootPiece.getWorldAABB();
-        const corners = getAABBCorners(aabb);
-        this.aabbDebug.update(corners);
-    }
-
 }

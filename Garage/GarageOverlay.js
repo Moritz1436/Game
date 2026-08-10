@@ -1,12 +1,12 @@
 import * as PIXI from "pixi.js";
 import { GAMESTATE } from "../GameState";
-
-
+import { HorizontalScroller } from "./HorizonalScroller.js";
+import { HSVColorPicker } from "./HSVColorPicker.js";
+import { hexToRgb, rgbToHex, rgbToHsv, hsvToRgb } from "./HSVColorPicker.js";
 
 const COLORS = {
     panelBg: 0x2b2b2b,
     panelBorder: 0x111111,
-    panelBorderLight: 0x555555,
     gold: 0xf4c542,
     goldDark: 0xa9791b,
     boxBg: 0x3a3a3a,
@@ -14,7 +14,6 @@ const COLORS = {
     boxBgSelected: 0x5a5a3a,
     boxBorder: 0x111111,
     textLight: 0xffffff,
-    textDim: 0xaaaaaa,
     exitRed: 0xb03030,
     exitRedHover: 0xd04040,
 };
@@ -37,85 +36,6 @@ function drawBox(g, w, h, bg, border, borderWidth) {
     g.clear();
     g.rect(0, 0, w, h).fill(bg);
     g.rect(0, 0, w, h).stroke({ width: borderWidth, color: border });
-}
-
-// ---------------------------------------------------------------------------
-// Generischer horizontaler Scroller (unverändert)
-// ---------------------------------------------------------------------------
-class HorizontalScroller extends PIXI.Container {
-    constructor(width, height) {
-        super();
-
-        this.content = new PIXI.Container();
-        this.addChild(this.content);
-
-        this.maskGfx = new PIXI.Graphics();
-        this.addChild(this.maskGfx);
-        this.content.mask = this.maskGfx;
-
-        this.eventMode = "static";
-        this.cursor = "grab";
-
-        this._dragging = false;
-        this._dragStartX = 0;
-        this._contentStartX = 0;
-        this._contentWidth = 0;
-
-        this.on("pointerdown", this._onDragStart, this);
-        this.on("globalpointermove", this._onDragMove, this);
-        this.on("pointerup", this._onDragEnd, this);
-        this.on("pointerupoutside", this._onDragEnd, this);
-
-        this.setSize(width, height);
-    }
-
-    setSize(width, height) {
-        this.viewWidth = width;
-        this.viewHeight = height;
-
-        this.maskGfx.clear();
-        this.maskGfx.rect(0, 0, width, height).fill(0xffffff);
-
-        this._clampContentX();
-    }
-
-    setItems(items, gap) {
-        this.content.removeChildren();
-        this.content.x = 0;
-
-        let x = 0;
-        for (const item of items) {
-            item.x = x;
-            item.y = 0;
-            this.content.addChild(item);
-            x += item.width + gap;
-        }
-        this._contentWidth = Math.max(0, x - gap);
-    }
-
-    _onDragStart(e) {
-        this._dragging = true;
-        this._dragStartX = e.global.x;
-        this._contentStartX = this.content.x;
-        this.cursor = "grabbing";
-    }
-
-    _onDragMove(e) {
-        if (!this._dragging) return;
-        const dx = e.global.x - this._dragStartX;
-        this.content.x = this._contentStartX + dx;
-        this._clampContentX();
-    }
-
-    _onDragEnd() {
-        this._dragging = false;
-        this.cursor = "grab";
-    }
-
-    _clampContentX() {
-        const overflow = Math.max(0, this._contentWidth - this.viewWidth);
-        this.content.x = Math.min(0, Math.max(-overflow, this.content.x));
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -192,75 +112,329 @@ function createSelectableBox(size, label, onClick) {
     return c;
 }
 
-// ---------------------------------------------------------------------------
-// GarageOverlay – vereinfacht:
-// - Oben: Geld + Exit
-// - Unten: eine Reihe mit BASE + allen Socket‑Typen der Base (Kategorien)
-// - Bei Klick auf eine Kategorie öffnet sich darüber eine Options-Reihe
-// - Base hat requiredSocketTypes → Pflichtfelder (kein "NONE")
-// - Andere Sockets optional ("NONE" vorhanden)
-// - Bei Base‑Wechsel werden alle required Sockets automatisch mit dem ersten verfügbaren Teil gefüllt
-// - Die untere Reihe zeigt keine Auswahl an (kein Highlight, keine Klammern)
-// ---------------------------------------------------------------------------
 export class GarageOverlay extends PIXI.Container {
 
-    constructor(app, assetManager, carConfigState, callbacks = {}) {
+    constructor(app, assetManager, car, carConfigState, callbacks = {}) {
         super();
 
         this.app = app;
+        this.car = car;
         this.assetManager = assetManager;
         this.carConfigState = carConfigState;
         this.callbacks = callbacks;
 
-        this.selectedType = null;          // aktuell geöffneter Kategorien‑Typ (oder null)
-        this.currentBaseAsset = null;      // Base‑Objekt für schnellen Zugriff
+        this.selectedType = null;
+        this.currentBaseAsset = null;
+        this.mode = "parts"; // "parts" | "color"
+        this.colorPicker = null;
+        this.colorPickerTarget = null; // { type, meshName, baseAsset }
 
         this.eventMode = "static";
 
-        // Top‑Bar
         this._buildTopBar();
+        this._buildModeButtons();
 
-        // Zwei Reihen: untere (Kategorien) und obere (Optionen)
         const rowHeight = this.app.renderer.height * 0.16;
         const boxSize = rowHeight * 0.72;
-        this._gap = 0;
+        const w = this.app.renderer.width;
+        this._gap = w * 0.015;
         this._boxSize = boxSize;
 
-        // Container für die untere Reihe (immer sichtbar)
-        this.bottomContainer = new PIXI.Container();
-        this.addChild(this.bottomContainer);
-        this.bottomBg = new PIXI.Graphics();
-        this.bottomContainer.addChild(this.bottomBg);
-        this.bottomScroller = new HorizontalScroller(100, boxSize);
-        this.bottomContainer.addChild(this.bottomScroller);
-
-        // Container für die Options-Reihe (anfangs unsichtbar)
-        this.optionsContainer = new PIXI.Container();
+        //lower row
+        [this.bottomContainer, this.bottomBg, this.bottomScroller] = this._createScroller(boxSize);
+        
+        //upper row
+        [this.optionsContainer, this.optionsBg, this.optionsScroller] = this._createScroller(boxSize);
         this.optionsContainer.visible = false;
-        this.addChild(this.optionsContainer);
-        this.optionsBg = new PIXI.Graphics();
-        this.optionsContainer.addChild(this.optionsBg);
-        this.optionsScroller = new HorizontalScroller(100, boxSize);
-        this.optionsContainer.addChild(this.optionsScroller);
 
-        // Initial befüllen und required Sockets sicherstellen
+        //color picker
+        this.colorPickerOutside = new PIXI.Graphics();
+        this.colorPickerOutside.eventMode = "static";
+        this.colorPickerOutside.visible = false;
+
+        this.addChild(this.colorPickerOutside);
+
+        this.colorPickerPanel = new PIXI.Container();
+        this.colorPickerPanel.visible = false;
+        this.addChild(this.colorPickerPanel);
+        this.colorPickerBg = new PIXI.Graphics();
+        this.colorPickerPanel.addChild(this.colorPickerBg);
+
+        this._onKeyDown = (e) => {
+            if (e.key === "Enter" && this.colorPickerPanel.visible) {
+                this._closeColorPicker();
+            }
+        };
+        window.addEventListener("keydown", this._onKeyDown);
+
+        // init
         this._updateBottomRow();
 
-        // Resize‑Handler
         this._resizeHandler = () => this.layout();
         window.addEventListener("resize", this._resizeHandler);
 
         this.layout();
     }
 
+    _createScroller(boxSize) {
+        const container = new PIXI.Container();
+        this.addChild(container);
+        const bg = new PIXI.Graphics();
+        container.addChild(bg);
+        const scroller = new HorizontalScroller(100, boxSize);
+        container.eventMode = "static";
+        container.on("wheel", (e) => { scroller._onWheel(e); });
+        container.on("pointerdown", (e) => { scroller._onDragStart(e); });
+        container.on("globalpointermove", (e) => { scroller._onDragMove(e); });
+        container.on("pointerup", (e) => { scroller._onDragEnd(e); });
+        container.on("pointerupoutside", (e) => { scroller._onDragEnd(e); });
+        container.addChild(scroller);
+
+        return [container, bg, scroller];
+    }
+
+    _buildModeButtons() {
+        this.modeButtonsContainer = new PIXI.Container();
+        this.addChild(this.modeButtonsContainer);
+
+        const wrenchTexture = PIXI.Sprite.from("assets/wrench.png");
+        const colorPickerTexture = PIXI.Sprite.from("assets/colorpicker.png");
+
+        this.wrenchButton = this._createModeButton(wrenchTexture, () => this._setMode("parts"));
+        this.colorButton = this._createModeButton(colorPickerTexture, () => this._setMode("color"));
+
+        this.modeButtonsContainer.addChild(this.wrenchButton);
+        this.modeButtonsContainer.addChild(this.colorButton);
+
+        this._refreshModeButtonHighlight();
+    }
+
+    _createModeButton(texture, onClick) {
+        const c = new PIXI.Container();
+        c.eventMode = "static";
+        c.cursor = "pointer";
+
+        const bg = new PIXI.Graphics();
+        c.addChild(bg);
+        c._bg = bg;
+
+        const sprite = new PIXI.Sprite(texture);
+        sprite.anchor.set(0.5);
+        c.addChild(sprite);
+        c._sprite = sprite;
+
+        c.on("pointerdown", onClick);
+        return c;
+    }
+
+    _setMode(mode) {
+        if (this.mode === mode) return;
+        this.mode = mode;
+        this._closeOptions();
+        this._closeColorPicker();
+        this._refreshModeButtonHighlight();
+        this.layout();
+    }
+
+    _refreshModeButtonHighlight() {
+        const size = this._modeBtnSize ?? 40;
+        for (const [btn, active] of [
+            [this.wrenchButton, this.mode === "parts"],
+            [this.colorButton, this.mode === "color"],
+        ]) {
+            drawBox(btn._bg, size, size, active ? COLORS.boxBgSelected : COLORS.boxBg, COLORS.boxBorder, Math.max(2, size * 0.06));
+        }
+    }
+
+    // -----------------------------------------------------------------
+    // Klick auf Kategorie: verzweigt je nach Modus
+    // -----------------------------------------------------------------
+    _onBottomItemClick(type) {
+        if (this.mode === "color") {
+            this._onColorCategoryClick(type);
+            return;
+        }
+
+        if (this.selectedType === type) {
+            this._closeOptions();
+            return;
+        }
+        this.selectedType = type;
+        this._updateOptionsRow(type);
+        this.optionsContainer.visible = true;
+        this._closeColorPicker();
+        this.layout();
+    }
+
+    _onColorCategoryClick(type) {
+        if (this.selectedType === type && this.optionsContainer.visible) {
+            this._closeOptions();
+            return;
+        }
+        this.selectedType = type;
+        this._closeColorPicker();
+        this._updateColorRow(type);
+        this.optionsContainer.visible = true;
+        this.layout();
+    }
+
+    _closeOptions() {
+        this.selectedType = null;
+        this.optionsContainer.visible = false;
+        this._closeColorPicker();
+        this.layout();
+    }
+
+    // -----------------------------------------------------------------
+    // Mesh-Reihe für einen Typ (Farbmodus) - ersetzt Options-Reihe
+    // -----------------------------------------------------------------
+    _updateColorRow(type) {
+        const isBase = type === "base";
+        const baseAsset = this.currentBaseAsset;
+
+        const pieceName = isBase
+            ? this.carConfigState.data.base
+            : this.carConfigState.getPartForType(type, baseAsset);
+
+        const items = [];
+
+        if (!pieceName) {
+            this.optionsScroller.setItems(items, this._gap, this._boxSize);
+            return;
+        }
+
+        const asset = this.assetManager.getAssetByName(pieceName);
+        if (!asset || !asset.meshes) {
+            this.optionsScroller.setItems(items, this._gap, this._boxSize);
+            return;
+        }
+
+        for (const meshDef of asset.meshes) {
+            const overrideHex = this.carConfigState.getMeshColor(type, meshDef.name);
+            const currentHex = overrideHex ?? rgbToHex(...hsvToRgb(...rgbToHsv(
+                Math.round(meshDef.baseColor[0] * 255),
+                Math.round(meshDef.baseColor[1] * 255),
+                Math.round(meshDef.baseColor[2] * 255)
+            )));
+
+            const box = this._createMeshBox(this._boxSize, meshDef.name, currentHex, () => {
+                this._openColorPickerFor(type, meshDef.name, baseAsset, currentHex, box);
+            });
+            items.push(box);
+        }
+
+        this.optionsScroller.setItems(items, this._gap, this._boxSize);
+    }
+
+    _createMeshBox(size, label, colorHex, onClick) {
+        const c = new PIXI.Container();
+        c.eventMode = "static";
+        c.cursor = "pointer";
+        c.width = size;
+        c.height = size;
+
+        const bg = new PIXI.Graphics();
+        c.addChild(bg);
+
+        const swatch = new PIXI.Graphics();
+        const swatchH = size * 0.28;
+        swatch.rect(size * 0.08, size - swatchH - size * 0.08, size * 0.84, swatchH)
+            .fill(parseInt(colorHex.replace("#", "0x")))
+            .stroke({ width: 1, color: COLORS.boxBorder });
+        c.addChild(swatch);
+
+        const txt = pixelText(label, size * 0.14, COLORS.textLight);
+        txt.anchor.set(0.5, 0);
+        txt.position.set(size / 2, size * 0.1);
+        txt.style.wordWrap = true;
+        txt.style.wordWrapWidth = size * 0.9;
+        txt.style.align = "center";
+        c.addChild(txt);
+
+        function redraw() {
+            drawBox(bg, size, size, COLORS.boxBg, COLORS.boxBorder, Math.max(2, size * 0.03));
+        }
+        redraw();
+
+        c.on("pointerover", () => {
+            drawBox(bg, size, size, COLORS.boxBgHover, COLORS.boxBorder, Math.max(2, size * 0.03));
+        });
+        c.on("pointerout", redraw);
+        c.on("pointerdown", () => onClick && onClick());
+
+        c._updateSwatch = (hex) => {
+            swatch.clear();
+            swatch.rect(size * 0.08, size - swatchH - size * 0.08, size * 0.84, swatchH)
+                .fill(parseInt(hex.replace("#", "0x")))
+                .stroke({ width: 1, color: COLORS.boxBorder });
+        };
+
+        return c;
+    }
+
+    // -----------------------------------------------------------------
+    // Farbwähler öffnen/schließen
+    // -----------------------------------------------------------------
+    _openColorPickerFor(type, meshName, baseAsset, currentHex, boxRef) {
+        this.colorPickerTarget = { type, meshName, baseAsset, boxRef };
+
+        if (!this.colorPicker) {
+            this.colorPicker = new HSVColorPicker(
+                this._boxSize * 3, 
+                (hex) => {
+                    const t = this.colorPickerTarget;
+                    if (!t) return;
+                    this.carConfigState.setMeshColor(t.type, t.meshName, hex);
+                    const pieces = t.type === "base" ? [this.car.rootPiece] : this.car.getPiecesByType(t.type);
+                    for (const piece of pieces) {
+                        piece.setMeshBaseColor(t.meshName, hex);
+                    }
+                    t.boxRef._updateSwatch(hex);
+                }
+            );
+            this.colorPickerPanel.addChild(this.colorPicker);
+        }
+
+        const savedHex = this.carConfigState.getMeshColor(type, meshName) ?? currentHex;
+        this.colorPicker.setColorHex(savedHex);
+
+        // Click-Catcher aktivieren
+        this.colorPickerOutside.visible = true;
+        this.colorPickerOutside.clear();
+        this.colorPickerOutside
+            .rect(
+                0,
+                0,
+                this.app.renderer.width,
+                this.app.renderer.height
+            )
+            .fill({ color: 0x000000, alpha: 0.001 });
+
+        // Klick außerhalb schließt
+        this.colorPickerOutside.off("pointerdown");
+        this.colorPickerOutside.on("pointerdown", () => {
+            this._closeColorPicker();
+        });
+
+        this.colorPickerPanel.visible = true;
+        this.layout();
+    }
+
+    _closeColorPicker() {
+        this.colorPickerTarget = null;
+        this.colorPickerPanel.visible = false;
+        this.colorPickerOutside.visible = false;
+    }
+
     destroy(options) {
         window.removeEventListener("resize", this._resizeHandler);
+        window.removeEventListener("keydown", this._onKeyDown);
         this.removeMoneyListener();
         super.destroy(options);
     }
 
     // -----------------------------------------------------------------
-    // Top‑Bar (unverändert)
+    // Top‑Bar
     // -----------------------------------------------------------------
     _buildTopBar() {
         this.moneyPanel = new PIXI.Container();
@@ -294,7 +468,7 @@ export class GarageOverlay extends PIXI.Container {
         this.exitButton.on("pointerover", () => this._drawExitButton(true));
         this.exitButton.on("pointerout", () => this._drawExitButton(false));
         this.exitButton.on("pointerdown", () => {
-            this.callbacks.onExit && this.callbacks.onExit();
+            this.callbacks.onExit && this.callbacks.onExit(this.carConfigState);
         });
     }
 
@@ -317,7 +491,7 @@ export class GarageOverlay extends PIXI.Container {
                 if (available.length > 0) {
                     this.carConfigState.setPartsForType(type, available[0].pieceName, baseAsset);
                 } else {
-                    console.warn(`Kein Asset für required Socket-Typ "${type}" verfügbar.`);
+                    console.warn(`No Asset required Socket-Typ "${type}" available.`);
                 }
             }
         }
@@ -354,7 +528,7 @@ export class GarageOverlay extends PIXI.Container {
             }
         }
 
-        this.bottomScroller.setItems(items, this._gap);
+        this.bottomScroller.setItems(items, this._gap, this._boxSize);
 
         // Wenn eine Options-Reihe offen ist, prüfen ob der Typ noch existiert
         if (this.selectedType && this.selectedType !== "base") {
@@ -369,23 +543,6 @@ export class GarageOverlay extends PIXI.Container {
             // Base existiert immer, also Options-Reihe aktualisieren
             this._updateOptionsRow("base");
         }
-    }
-
-    // -----------------------------------------------------------------
-    // Klick auf eine Kategorie der unteren Reihe
-    // -----------------------------------------------------------------
-    _onBottomItemClick(type) {
-        if (this.selectedType === type) {
-            // Gleiche Kategorie → schließen
-            this._closeOptions();
-            return;
-        }
-
-        // Andere Kategorie → alte schließen, neue öffnen
-        this.selectedType = type;
-        this._updateOptionsRow(type);
-        this.optionsContainer.visible = true;
-        this.layout();
     }
 
     _closeOptions() {
@@ -432,7 +589,7 @@ export class GarageOverlay extends PIXI.Container {
             items.push(box);
         }
 
-        this.optionsScroller.setItems(items, this._gap);
+        this.optionsScroller.setItems(items, this._gap, this._boxSize);
     }
 
     // -----------------------------------------------------------------
@@ -465,11 +622,12 @@ export class GarageOverlay extends PIXI.Container {
                 this._ensureRequiredSockets(newBase);
             }
 
+            this.carConfigState.applyTo(this.car);
+
             // Untere Reihe neu aufbauen (weil sich die Socket‑Liste geändert hat)
             this._updateBottomRow();
-            // Options‑Reihe schließen
-            this._closeOptions();
-            this._notifyChange();
+            this.selectedType = "base";
+            this._updateOptionsRow("base");
             this.layout();
             return;
         }
@@ -477,12 +635,9 @@ export class GarageOverlay extends PIXI.Container {
         // Socket‑Teil setzen (oder entfernen bei "NONE")
         const pieceName = asset ? asset.pieceName : null;
         this.carConfigState.setPartsForType(type, pieceName, baseAsset);
+        this.car.replacePart(type, pieceName);
 
-        // Untere Reihe aktualisieren (nur um die required‑Füllung zu prüfen – hier nicht nötig)
-        // Aber wir müssen die Options-Reihe aktualisieren, um die Markierungen zu ändern
         this._updateOptionsRow(type);
-        // Offen lassen
-        this._notifyChange();
         this.layout();
     }
 
@@ -503,17 +658,12 @@ export class GarageOverlay extends PIXI.Container {
         }
     }
 
-    _notifyChange() {
-        this.callbacks.onChange && this.callbacks.onChange(this.carConfigState);
-    }
-
     // -----------------------------------------------------------------
     // Layout – positioniert die Reihen und passt Größen an
     // -----------------------------------------------------------------
     layout() {
         const w = this.app.renderer.width;
         const h = this.app.renderer.height;
-
         const margin = w * 0.02;
         const rowHeight = h * 0.16;
         const boxSize = rowHeight * 0.72;
@@ -540,16 +690,29 @@ export class GarageOverlay extends PIXI.Container {
         this._drawExitButton(false);
         this.exitButton.position.set(w - margin - this._exitSize, margin);
 
-        // ---- Untere Reihe (immer sichtbar) ----
+        // ---- Mode-Buttons (links) ----
+        this._modeBtnSize = h * 0.07;
+        this._refreshModeButtonHighlight();
+        this.wrenchButton._sprite.width = this._modeBtnSize * 0.6;
+        this.wrenchButton._sprite.height = this._modeBtnSize * 0.6;
+        this.wrenchButton._sprite.position.set(this._modeBtnSize / 2, this._modeBtnSize / 2);
+        this.colorButton._sprite.width = this._modeBtnSize * 0.6;
+        this.colorButton._sprite.height = this._modeBtnSize * 0.6;
+        this.colorButton._sprite.position.set(this._modeBtnSize / 2, this._modeBtnSize / 2);
+
+        this.wrenchButton.position.set(margin, h * 0.5 - this._modeBtnSize - margin * 0.5);
+        this.colorButton.position.set(margin, h * 0.5 + margin * 0.5);
+
+        // ---- Untere Reihe ----
         const bottomY = h - rowHeight - margin;
         drawBox(this.bottomBg, w - margin * 2, rowHeight, COLORS.panelBg, COLORS.panelBorder, Math.max(2, h * 0.004));
         this.bottomContainer.position.set(margin, bottomY);
         this.bottomScroller.setSize(w - margin * 2 - this._gap * 2, boxSize);
         this.bottomScroller.position.set(this._gap, (rowHeight - boxSize) / 2);
 
-        // ---- Options‑Reihe (nur sichtbar wenn selectedType != null) ----
+        // ---- Options-/Mesh-Reihe ----
+        const optY = bottomY - rowHeight - margin * 0.5;
         if (this.selectedType !== null) {
-            const optY = bottomY - rowHeight - margin * 0.5;
             drawBox(this.optionsBg, w - margin * 2, rowHeight, COLORS.panelBg, COLORS.panelBorder, Math.max(2, h * 0.004));
             this.optionsContainer.position.set(margin, optY);
             this.optionsContainer.visible = true;
@@ -557,6 +720,16 @@ export class GarageOverlay extends PIXI.Container {
             this.optionsScroller.position.set(this._gap, (rowHeight - boxSize) / 2);
         } else {
             this.optionsContainer.visible = false;
+        }
+
+        // ---- Color-Picker-Panel (über der Mesh-Reihe) ----
+        if (this.colorPickerPanel.visible) {
+            const panelSize = boxSize * 3;
+            const panelW = panelSize + margin;
+            const panelH = panelSize + margin;
+            drawBox(this.colorPickerBg, panelW, panelH, COLORS.panelBg, COLORS.panelBorder, Math.max(2, h * 0.004));
+            this.colorPickerPanel.position.set(margin, optY - panelH - margin * 0.5);
+            this.colorPicker.position.set(margin * 0.5, margin * 0.5);
         }
     }
 }

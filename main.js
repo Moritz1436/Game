@@ -100,21 +100,6 @@ function setupDebug(app) {
         window.DEBUG.showCarBounds = e.target.checked;
     });
 
-    speedToggle.checked = false;
-    speedToggle.addEventListener("change", (e) => {
-        window.DEBUG.speedHack = e.target.checked;
-        if (SceneStack.getTopSceneName() === "DriveScene"){
-            if (e.target.checked){
-                SceneStack.getTopScene().speedZ *= 10;      
-                SceneStack.getTopScene().speedX *= 10;      
-            } 
-            else {
-                SceneStack.getTopScene().speedZ /= 10;
-                SceneStack.getTopScene().speedX /= 10;
-            }
-        }
-    });
-
     const fpsCounter = document.getElementById("fpsCounter");
     const meshCounter = document.getElementById("meshCounter");
     const triangleCounter = document.getElementById("triangleCounter");
@@ -132,10 +117,6 @@ async function boot(app) {
     const loadingScreen = new LoadingScreen(app);
     SceneStack.pushScene(loadingScreen);
 
-    //car config
-    const initialConfig = DEFAULT_CAR_CONFIG;
-    GAMESTATE.updateCarConfig(initialConfig);
-
     //car pieces
     await loadingScreen.run(
         GLOBAL_MANIFEST.map((entry, i) => async () => {
@@ -147,17 +128,19 @@ async function boot(app) {
 
     //static images
     const imgs = [
-        //{ name: "Landscape", path: "assets/landscape.png" },
-        //{ name: "Garage", path: "assets/garage.png" },
-        //{ name: "Menu", path: "assets/menu.png" }
+        // GarageOverlay
+        "assets/colorpicker.png",
+        "assets/wrench.png"
     ];
     await loadingScreen.run(
         imgs.map(img => async () => {
-            await PIXI.Assets.load(img.path);
+            await PIXI.Assets.load(img);
         }),
         null,
         imgs.map(() => "Loading Images")
     );
+
+    GAMESTATE.loadState();
 
     // Start Scene
     const mapScene = await MapScene.create(app, loadingScreen);

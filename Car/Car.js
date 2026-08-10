@@ -2,6 +2,7 @@ import { Object3D } from "../World3D/Object3D.js";
 import { CarPieceInstance } from "./CarPieceInstance.js";
 import { aabbOverlap } from "../World3D/Utils/BoundsUtils.js";
 import { mat3Mul } from "../World3D/Utils/Mat3Utils.js";
+import { DebugOutline } from "../World3D/DebugOutline.js";
 
 function rgbaToHex(rgba) {
     const r = Math.round(rgba[0] * 255);
@@ -40,7 +41,9 @@ export class Car extends Object3D {
         this.assetManager = assetManager;
         this.scale = scale;
 
-        this.speed = 0;
+        // stuff like speed, boost_time, boost_value
+        this.properties = {};
+
         this.lod = 'high';
         this.rootPiece = null;
 
@@ -55,6 +58,7 @@ export class Car extends Object3D {
 
     importConfig(config) {
         const MIRRORED_SOCKETS = new Set(["socket_tire_fr", "socket_tire_rr"]);
+        this.currentConfig = structuredClone(config);
 
         if (this.rootPiece) this.rootPiece.destroy();
 
@@ -68,8 +72,22 @@ export class Car extends Object3D {
             const mirrored = MIRRORED_SOCKETS.has(socketName.toLowerCase());
             const piece = new CarPieceInstance(partAsset, this.layer, { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }, 1, mirrored);
             this.rootPiece.attachChild(socketName, piece);
-            this.applyPieceColors(piece, config.colors?.[socketName]);
         }
+
+        for (const [type, meshColors] of Object.entries(config.colors ?? {})) {
+            if (type === "base") {
+                this.applyPieceColors(this.rootPiece, meshColors);
+                continue;
+            }
+
+            const pieces = this.getPiecesByType(type);
+
+            for (const piece of pieces) {
+                this.applyPieceColors(piece, meshColors);
+            }
+        }
+
+        this.properties = config.properties;
         
         this.rootPiece.updateWorldTransform();
         
@@ -77,70 +95,199 @@ export class Car extends Object3D {
         this.rootPiece.setLocalPosition(pos);
         this.pos3d = pos;
 
-        this.applyPieceColors(this.rootPiece, config.colors?.["base"]);
+        this._refreshDebugShape();
     }
 
-    ///@brief rotates the rootpiece, making it face this direction
-    ///@param direction: "x", "-x", "y", "-y", "z", "-z", saying the matrix is already facing x
-    rotateRoot(direction) {
+    replacePart(type, pieceName) {
         if (!this.rootPiece) return;
-        let rot;
 
-        switch (direction) {
-            case "x":
-                rot = [
-                    1, 0, 0,
-                    0, 1, 0,
-                    0, 0, 1
-                ];
-                break;
+        const MIRRORED_SOCKETS = new Set([
+            "socket_tire_fr",
+            "socket_tire_rr"
+        ]);
 
-            case "-x":
-                rot = [
-                    -1, 0, 0,
-                    0, 1, 0,
-                    0, 0, -1
-                ];
-                break;
+        const baseAsset = this.rootPiece.asset;
 
-            case "y":
-                rot = [
-                    0, -1, 0,
-                    1,  0, 0,
-                    0,  0, 1
-                ];
-                break;
+        const sockets = baseAsset.sockets.filter(
+            socket => socket.type === type
+        );
 
-            case "-y":
-                rot = [
-                    0, 1, 0,
-                    -1, 0, 0,
-                    0, 0, 1
-                ];
-                break;
-
-            case "z":
-                rot = [
-                    0, 0, 1,
-                    0, 1, 0,
-                    -1, 0, 0
-                ];
-                break;
-
-            case "-z":
-                rot = [
-                    0, 0, -1,
-                    0, 1,  0,
-                    1, 0,  0
-                ];
-                break;
-
-            default:
-                throw new Error(`Unknown direction: ${direction}`);
+        if (sockets.length === 0) {
+            console.warn(`Car: no sockets of type "${type}" found`);
+            return;
         }
 
-        this.rootPiece.localRotationMatrix = mat3Mul(this.rootPiece.localRotationMatrix, rot);
+        const partAsset = pieceName
+            ? this.assetManager.getAssetByName(pieceName)
+            : null;
+
+        if (pieceName && !partAsset) {
+            console.warn(`Car: part "${pieceName}" not found`);
+            return;
+        }
+
+        for (const socket of sockets) {
+            const socketName = socket.name;
+            const oldPiece = this.rootPiece.children.get(socketName);
+
+            // Altes Part entfernen.
+            if (oldPiece) {
+                oldPiece.destroy();
+                this.rootPiece.children.delete(socketName);
+            }
+
+            // null = Part entfernen
+            if (!partAsset) {
+                continue;
+            }
+
+            const mirrored = MIRRORED_SOCKETS.has(
+                socketName.toLowerCase()
+            );
+
+            const piece = new CarPieceInstance(
+                partAsset,
+                this.layer,
+                { x: 0, y: 0, z: 0 },
+                { x: 0, y: 0, z: 0 },
+                1,
+                mirrored
+            );
+
+            const attached = this.rootPiece.attachChild(
+                socketName,
+                piece
+            );
+
+            if (!attached) {
+                piece.destroy();
+                continue;
+            }
+
+            const colors = this.currentConfig?.colors?.[socketName];
+            this.applyPieceColors(piece, colors);
+        }
+
         this.rootPiece.updateWorldTransform();
+
+        this.repositionToGround();
+        this._refreshDebugShape();
+    }
+
+    setPieceMeshColor(pieceKey, meshName, colorHex) {
+        const piece = pieceKey === "base"
+            ? this.rootPiece
+            : this._getPiece(pieceKey);
+
+        if (!piece) {
+            console.warn(`Car: piece "${pieceKey}" not found`);
+            return;
+        }
+
+        console.log(`setting ${pieceKey}'s ${meshName} to ${colorHex}`);
+
+        piece.setMeshBaseColor(meshName, colorHex);
+    }
+
+    showDebugOutline(layer, color = [1, 0, 0]) {
+        if (!this.debugOutline) {
+            this.debugOutline = new DebugOutline(layer, color);
+            this._refreshDebugShape();
+            this._syncDebugTransform();
+        }
+        return this.debugOutline;
+    }
+
+    hideDebugOutline() {
+        if (this.debugOutline) {
+            this.debugOutline.destroy();
+            this.debugOutline = null;
+        }
+    }
+
+    //when the bounds change
+    _refreshDebugShape() {
+        if (this.debugOutline) this.debugOutline.rebuildShape(this.rootPiece.getLocalAABB());
+    }
+
+    _syncDebugTransform() {
+        if (this.debugOutline) this.debugOutline.setTransform(this.rootPiece.pos3d, this.rootPiece.rotationMatrix);
+    }
+
+    _getPieceBySocketName(name, piece = null) {
+        if (!piece) piece = this.rootPiece;
+
+        for (const [socketName, child] of piece.children) {
+            if (socketName === name) return child;
+            const t = this._getPieceBySocketName(name, child);
+            if (t) return t;
+        }
+
+        return null;
+    }
+
+    _getPiece(piece) {
+        if (!this.rootPiece) return null;
+        if (!piece) return this.rootPiece;
+        const p = this._getPieceBySocketName(piece);
+        if (!p) console.warn(`socket ${piece} not found!`);
+        return p;
+    }
+
+    getPiecesByType(type) {
+        const pieces = [];
+
+        const collect = (piece) => {
+            if (piece.asset.type === type) {
+                pieces.push(piece);
+            }
+
+            for (const child of piece.children.values()) {
+                collect(child);
+            }
+        };
+
+        if (this.rootPiece) {
+            collect(this.rootPiece);
+        }
+
+        return pieces;
+    }
+
+    ///@brief rotates the rootpiece, localRotationMatrix *= rot
+    ///@param rot: 3x3 matrix
+    ///@param piece: name of the piece, null => root
+    rotate(rot, piece = null) {
+        const target = this._getPiece(piece);
+        if (!target) return;
+        target.localRotationMatrix = mat3Mul(target.localRotationMatrix, rot);
+        target.updateWorldTransform();
+    }
+
+    ///@param rot: 3x3 matrix
+    ///@param piece: name of the piece, null => root
+    setRotation(mat, piece = null) {
+        const target = this._getPiece(piece);
+        if (!target) return;
+        target.localRotationMatrix = [...mat];
+        target.updateWorldTransform();
+
+        //only when root was changed
+        if (!piece) this._syncDebugTransform();
+    }
+
+    ///@param piece: name of the piece, null => root
+    getRotation(piece = null) {
+        const target = this._getPiece(piece);
+        if (!target) return;
+        return target.localRotationMatrix ? [... target.localRotationMatrix] : [];
+    }
+
+    ///@param piece: name of the piece, null => root
+    getLocalBounds(piece = null) {
+        const target = this._getPiece(piece);
+        if (!target) return;
+        return target.getWorldAABB();
     }
 
     _calculateGroundPosition() {
@@ -148,7 +295,7 @@ export class Car extends Object3D {
             return { x: 0, y: 0, z: 0 };
         }
         
-        const myBounds = this.rootPiece.getWorldAABB();
+        const myBounds = this.rootPiece.getLocalAABB();
         const yOffset = -myBounds.min.y;
 
         return {
@@ -165,10 +312,12 @@ export class Car extends Object3D {
         const pos = this._calculateGroundPosition();
         this.rootPiece.setLocalPosition(pos);
         this.pos3d = pos;
+
+        this._syncDebugTransform();
     }
 
     exportConfig() {
-        const config = { base: this.rootPiece.asset.pieceName, parts: {}, colors: {} };
+        const config = { base: this.rootPiece.asset.pieceName, parts: {}, colors: {}, properties: this.properties };
 
         config.colors["base"] = this.exportPieceColors(this.rootPiece);
         for (const [socketName, child] of this.rootPiece.children) {
@@ -213,12 +362,10 @@ export class Car extends Object3D {
         this.lod = lod;
     }
 
-    move(delta) {
-        this.pos3d.x += delta.x;
-        this.pos3d.y += delta.y;
-        this.pos3d.z += delta.z;
-
+    setPosition(pos3d) {
+        this.pos3d = pos3d;
         this.rootPiece.setLocalPosition(this.pos3d); // cascades to every attached part
+        this._syncDebugTransform();
     }
 
     checkCollision(otherCars) {

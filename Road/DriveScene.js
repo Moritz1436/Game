@@ -14,6 +14,8 @@ import { LoadingScreen } from "../LoadingScreen.js";
 import { CarManager } from "../Car/CarManager.js";
 import { GAMESTATE } from "../GameState.js";
 import { globalAssetManager, DEFAULT_CAR_CONFIG } from "../GlobalAssets.js";
+import { computeScaleForWidth, ROT_X_TO_NEGZ, rotationY, rotationZ } from "../Car/CarUtils.js";
+import { mat3Mul } from "../World3D/Utils/Mat3Utils.js";
 
 /* Note:
     use https://itch.io/game-assets/free/tag-3d/tag-tree for more models
@@ -49,6 +51,12 @@ import { globalAssetManager, DEFAULT_CAR_CONFIG } from "../GlobalAssets.js";
     Tree3    |  435 tris |  130 tris |   64 tris
     Tree4    |  128 tris |   38 tris |   34 tris
     Tree5    |  348 tris |  104 tris |   60 tris
+*/
+
+/* Debug Features
+    ShowMeshes: for ground and street
+    arrows to move cam arround car, up/down to move car in 4 spots, left/right to rot cam
+    showcarbounds
 */
 
 //Scene when driving from 1 city to another
@@ -184,41 +192,67 @@ export class DriveScene extends UIScene {
         const camRot = { x: -0.15, y: 0, z: 0 };
         this.camera = new Camera(app, this.camPos3dStart, camRot);
 
-        //world units movement per second
-        this.speedX = 250;
-        this.speedZ = 800;
-
         this.mountainLayer = new PIXI.Container();
         this.groundLayer = new PIXI.Container();
         this.roadLayer = new PIXI.Container();
         this.objectLayer = new PIXI.Container();
         this.carLayer = new PIXI.Container();
         this.overlayLayer = new PIXI.Container();
-        this.debugLayer = new PIXI.Container();
+        this.debugLayerUI = new PIXI.Container();
+        this.debugLayerWorld = new PIXI.Container();
 
         this.world3dScene.addChild(this.mountainLayer);
         this.world3dScene.addChild(this.groundLayer);
         this.world3dScene.addChild(this.roadLayer);
         this.world3dScene.addChild(this.objectLayer);
         this.world3dScene.addChild(this.carLayer);
+        this.world3dScene.addChild(this.debugLayerWorld);
         
         //Background -> Foreground
-        this.uiScene.addChild(this.debugLayer);
+        this.uiScene.addChild(this.debugLayerUI);
         this.uiScene.addChild(this.overlayLayer);
 
+        //Player Car
+        this.carZOffset = 250; //how many world units the car is infornt of the cam
+        this.carFollowSpeedX = 7.0;
+        this.carFollowSpeedZ = 15.0;
+        this.carWidth = RoadManager.width * 2.0 / 3.0 * 0.7; //world units
         this.carManager = new CarManager(this.carLayer, globalAssetManager);
-        const playerCarConfig = GAMESTATE.ownedCars[GAMESTATE.activeCarIndex] ?? DEFAULT_CAR_CONFIG;
-        const startPos = { x: 0, y: 0, z: this.camPos3dStart.z - 200 };
+        const playerCarConfig = GAMESTATE.getCurrentCarConfig();
+        this.carVisualPos = { x: 0, y: 0, z: this.camPos3dStart.z - this.carZOffset };
+        const baseAsset = globalAssetManager.getAssetByName(playerCarConfig.base);
+        const carScale = computeScaleForWidth(baseAsset, this.carWidth);
 
-        this.playerCar = this.carManager.spawnPlayerCar(playerCarConfig, startPos, 30);
-        this.playerCar.rotateRoot("-z");
+        this.playerCar = this.carManager.spawnPlayerCar(playerCarConfig, this.carVisualPos, carScale);
+        this.playerCar.rotate(ROT_X_TO_NEGZ);
+        this.playerCar.repositionToGround();
+        this.carVisualPos.y = this.playerCar.pos3d.y;
+
+        //steering
+        this.baseRot = this.playerCar.getRotation();
+        this.rot_tire_FR = this.playerCar.getRotation("socket_tire_FR");
+        this.rot_tire_FL = this.playerCar.getRotation("socket_tire_FL");
+        this.rot_tire_RL = this.playerCar.getRotation("socket_tire_RL");
+        this.rot_tire_RR = this.playerCar.getRotation("socket_tire_RR");
+        this.maxSteeringAngle = 0.21; // ca. 12°
+        this.steeringSpeed = 8;
+        this.steeringAngle = 0;
+        this.steeringTarget = 0;
+        const bounds = this.playerCar.getLocalBounds("socket_tire_FR");
+        this.wheelRadius = (bounds.max.y - bounds.min.y) * 0.5;
+
+        //Debug
+        this.dDown = false;
+        this.uDown = false;
+        this.level = 0;
+        this.carXOffset = 0;
 
         //road
         this.road = new RoadManager(
             app,
             this.camera,
             this.roadLayer,
-            this.debugLayer,
+            this.debugLayerUI,
             scaledDistance
         );
 
@@ -239,6 +273,8 @@ export class DriveScene extends UIScene {
         );
 
         this.overlay = new OverlayManager(app, this.overlayLayer);
+        this.displaySpeed = 0;
+        this.speedUpdateTimer = 0;
 
         //base background
         const groundLength = scaledDistance + 3200;
@@ -247,7 +283,7 @@ export class DriveScene extends UIScene {
             y: -1,
             z: 50 - scaledDistance * 0.5
         };
-        this.ground = new GroundManager(app, this.camera, this.groundLayer, this.debugLayer, groundPos, {x: 5000, y: groundLength });
+        this.ground = new GroundManager(app, this.camera, this.groundLayer, this.debugLayerUI, groundPos, {x: 5000, y: groundLength });
 
         app.ticker.add(this.update, this);
     }
@@ -266,21 +302,96 @@ export class DriveScene extends UIScene {
         //frame indipendant
         const dt = ticker.deltaMS / 1000;
 
-        let delta = {x: 0, y: 0, z: 0};
+        const speedZ = this.playerCar.properties.speed;
+        const baseSpeedZ = speedZ * 0.6;
+        const additionalSpeedZ = speedZ * 0.4;
+        const speedX = speedZ * 0.25;
+
+        const newCamPos = { x: this.camera.pos3d.x, y: this.camera.pos3d.y, z: this.camera.pos3d.z };
+        const oldCamPosZ = this.camera.pos3d.z;
+        newCamPos.z -= baseSpeedZ * dt;
+
+        let steeringInput = 0;
+
+        //DEBUG START
+        if (window.DEBUG.enabled) {
+            let newInput = false;
+            if (Input.isKeyDown("ArrowDown")) {
+                if (!this.dDown){
+                    this.level += 1;
+                    if (this.level >= 4) this.level = 0;
+                    newInput = true;
+                }
+                this.dDown = true;
+            }
+            else {
+                this.dDown = false;
+            }
+            if (Input.isKeyDown("ArrowUp")) {
+                if (!this.uDown){
+                    this.level -= 1;
+                    if (this.level < 0) this.level = 3;
+                    newInput = true;
+                }
+                this.uDown = true;
+            }
+            else {
+                this.uDown = false;
+            }
+
+            if (Input.isKeyDown("ArrowLeft")) { 
+                this.camera.rot3d.y += dt;
+            }
+            if (Input.isKeyDown("ArrowRight")) {
+                this.camera.rot3d.y -= dt;
+            }
+
+            if (newInput) {
+                if (this.level == 0){
+                    this.carXOffset = 0;
+                    this.carZOffset = 250;
+                } 
+                if (this.level == 1){
+                    this.carXOffset = -200;
+                    this.carZOffset = 0;
+                } 
+                if (this.level == 2){
+                    this.carXOffset = 0;
+                    this.carZOffset = -250;
+                } 
+                if (this.level == 3){
+                    this.carXOffset = 200;
+                    this.carZOffset = 0;
+                }
+            }
+        }
+        //DEBUG END
 
         // Move Camera based on Inputs
         if (Input.isKeyDown("KeyW")){
-            delta.z -= this.speedZ * dt;
+            newCamPos.z -= additionalSpeedZ * dt;
         }
         if (Input.isKeyDown("KeyS")){
-            delta.z += this.speedZ * dt;
+            newCamPos.z += additionalSpeedZ * dt;
         }
         if (Input.isKeyDown("KeyD")){
-            delta.x += this.speedX * dt;
+            steeringInput -= 1;
+            newCamPos.x += speedX * dt;
         }
         if (Input.isKeyDown("KeyA")){
-            delta.x -= this.speedX * dt;
+            steeringInput += 1;
+            newCamPos.x -= speedX * dt;
         }
+        const oldX = newCamPos.x;
+
+        const minX = (-RoadManager.width + this.playerCar.getLocalBounds().max.x) * 0.5;
+        const maxX = (RoadManager.width - this.playerCar.getLocalBounds().max.x) * 0.5;
+
+        newCamPos.x = Math.max(minX, Math.min(newCamPos.x, maxX));
+        newCamPos.z = Math.min(newCamPos.z, 0);
+        this.camera.pos3d = newCamPos;
+
+        if (oldX !== newCamPos.x) steeringInput = 0;
 
         const distanceCovered = this.camPos3dStart.z - this.camera.pos3d.z;
         if (distanceCovered >= this.distance){
@@ -291,11 +402,45 @@ export class DriveScene extends UIScene {
             return;
         }
 
-        //move objects
-        this.camera.pos3d.x += delta.x;
-        this.camera.pos3d.y += delta.y;
-        this.camera.pos3d.z += delta.z;
-        this.carManager.playerCar.move(delta);
+        //position lerping 
+        const targetX = this.camera.pos3d.x + this.carXOffset;
+        const targetZ = this.camera.pos3d.z - this.carZOffset;
+        const followTX = 1 - Math.exp(-this.carFollowSpeedX * dt);
+        const followTZ = 1 - Math.exp(-this.carFollowSpeedZ * dt);
+        
+        this.carVisualPos.x += (targetX - this.carVisualPos.x) * followTX;
+        this.carVisualPos.z += (targetZ - this.carVisualPos.z) * followTZ;
+        this.playerCar.setPosition(this.carVisualPos);
+
+        //steering rotation for rootPiece and front tires
+        this.steeringTarget = steeringInput * this.maxSteeringAngle;
+        const steeringFollow = 1 - Math.exp(-this.steeringSpeed * dt);
+        this.steeringAngle += (this.steeringTarget - this.steeringAngle) * steeringFollow;
+        const addRot = rotationY(-this.steeringAngle);
+        const steeringRot = rotationY(-this.steeringAngle);
+
+        //wheel rolling * wheel steering
+        const wheelRotation = ((oldCamPosZ - this.camera.pos3d.z) / this.wheelRadius);
+        const rotWheel = rotationZ(-wheelRotation);
+
+        this.rot_tire_FR = mat3Mul(rotWheel, this.rot_tire_FR);
+        this.rot_tire_FL = mat3Mul(rotWheel, this.rot_tire_FL);
+        this.rot_tire_RL = mat3Mul(rotWheel, this.rot_tire_RL);
+        this.rot_tire_RR = mat3Mul(rotWheel, this.rot_tire_RR);
+
+        this.playerCar.setRotation(mat3Mul(this.baseRot, addRot));
+        this.playerCar.setRotation(mat3Mul(steeringRot, this.rot_tire_FR), "socket_tire_FR");
+        this.playerCar.setRotation(mat3Mul(steeringRot, this.rot_tire_FL), "socket_tire_FL");
+        this.playerCar.setRotation(this.rot_tire_RL, "socket_tire_RL");
+        this.playerCar.setRotation(this.rot_tire_RR, "socket_tire_RR");
+
+
+        //debug car bounds
+        if (window.DEBUG.enabled && window.DEBUG.showCarBounds) {
+            this.playerCar.showDebugOutline(this.debugLayerWorld);
+        } else {
+            this.playerCar.hideDebugOutline();
+        }
 
 
         //update mountains
@@ -310,9 +455,14 @@ export class DriveScene extends UIScene {
         //update ground
         this.ground.update(this.app, this.camera);
 
-        this.overlay.update(distanceCovered, this.speedZ);
+        this.speedUpdateTimer += dt;
+        if (this.speedUpdateTimer >= 0.5) {
+            this.displaySpeed = Math.abs((oldCamPosZ - this.camera.pos3d.z) / dt);
+            this.speedUpdateTimer = 0;
+        }
+
+        this.overlay.update(distanceCovered, this.displaySpeed);
 
         this.camera.update();
     }
-
 }

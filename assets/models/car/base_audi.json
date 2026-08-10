@@ -39077,7 +39077,7 @@
             "triangles": 216
         },
         {
-            "name": "headlights",
+            "name": "front_lights",
             "texture": null,
             "baseColor": [
                 0.9911,

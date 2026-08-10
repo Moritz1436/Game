@@ -1,7 +1,17 @@
 {
+    "name": "Rock2_high",
     "meshes": [
         {
-            "texture": "assets/models/nature/Cube.007_0_0_9nhvbonv.png",
+            "name": "Rock9",
+            "texture": null,
+            "baseColor": [
+                0.1221,
+                0.1248,
+                0.1248,
+                1.0
+            ],
+            "metallic": 0.0,
+            "roughness": 0.4,
             "vertices": [
                 -0.441322,
                 0.990325,
@@ -10410,5 +10420,7 @@
             ],
             "triangles": 394
         }
-    ]
+    ],
+    "sockets": [],
+    "requiredSocketTypes": []
 }

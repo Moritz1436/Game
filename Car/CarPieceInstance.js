@@ -104,7 +104,7 @@ export class CarPieceInstance extends ModelInstance {
             child.updateWorldTransform();
         }
     }
-
+    
     // Change this piece's local rotation (e.g. a spinning wheel, a steered
     // front axle) and re-cascade immediately.
     setLocalRotation(localRot3d) {
@@ -120,6 +120,7 @@ export class CarPieceInstance extends ModelInstance {
     invalidateBoundsUpward() {
         this.boundsChanged = true;
         this.cachedAABB = null;
+        this.cachedLocalAABB = null;
         if (this.parent) this.parent.invalidateBoundsUpward();
     }
 
@@ -135,6 +136,29 @@ export class CarPieceInstance extends ModelInstance {
 
         this.cachedAABB = bounds;
         this.boundsChanged = false;
+        return bounds;
+    }
+
+    // Local-space AABB (relative to root's origin, un-rotated), built the same
+    // way transformBounds/updateWorldTransform chain position+scale but never applies rotation
+    getLocalAABB(originPos = { x: 0, y: 0, z: 0 }, parentScale = 1) {
+        if (this.cachedLocalAABB && !this.boundsChanged) return this.cachedLocalAABB;
+
+        const scale = parentScale * this.localScale;
+        const pos = this.parent
+            ? {
+                x: originPos.x + this.localPos3d.x * parentScale,
+                y: originPos.y + this.localPos3d.y * parentScale,
+                z: originPos.z + this.localPos3d.z * parentScale,
+            }
+            : originPos;
+
+        let bounds = transformBounds(this.asset.bounds, pos, scale);
+        for (const child of this.children.values()) {
+            bounds = mergeBounds(bounds, child.getLocalAABB(pos, scale));
+        }
+
+        this.cachedLocalAABB = bounds;
         return bounds;
     }
 

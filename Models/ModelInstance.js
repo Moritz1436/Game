@@ -70,12 +70,18 @@ export class ModelInstance extends Object3D {
             console.warn(`ModelInstance: no mesh named "${name}" on asset "${this.asset.name}"`);
             return;
         }
+
+        const hex = typeof colorHex === "string"
+            ? parseInt(colorHex.replace("#", ""), 16)
+            : colorHex;
+
         const rgba = new Float32Array([
-            ((colorHex >> 16) & 0xff) / 255,
-            ((colorHex >> 8) & 0xff) / 255,
-            (colorHex & 0xff) / 255,
+            ((hex >> 16) & 0xff) / 255,
+            ((hex >> 8) & 0xff) / 255,
+            (hex & 0xff) / 255,
             1.0,
         ]);
+
         entry.mesh.shader.resources.uMaterial.uniforms.uBaseColor.set(rgba);
     }
 
