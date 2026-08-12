@@ -28,9 +28,6 @@ export class CarPieceInstance extends ModelInstance {
 
         this.parent = null;
         this.children = new Map(); // socketName -> CarPieceInstance
-
-        this.boundsChanged = true;
-        this.cachedAABB = null;
     }
 
     // Attach a child into one of this piece's sockets. Fails (with a
@@ -56,7 +53,6 @@ export class CarPieceInstance extends ModelInstance {
         this.children.set(socketName, piece);
 
         piece.updateWorldTransform();
-        this.invalidateBoundsUpward();
         return true;
     }
 
@@ -66,7 +62,6 @@ export class CarPieceInstance extends ModelInstance {
 
         child.destroy();
         this.children.delete(socketName);
-        this.invalidateBoundsUpward();
     }
 
     // Recompute this piece's world transform from the parent's current world
@@ -117,33 +112,19 @@ export class CarPieceInstance extends ModelInstance {
         this.updateWorldTransform();
     }
 
-    invalidateBoundsUpward() {
-        this.boundsChanged = true;
-        this.cachedAABB = null;
-        this.cachedLocalAABB = null;
-        if (this.parent) this.parent.invalidateBoundsUpward();
-    }
-
-    // World-space AABB of this piece plus all children, cached until
-    // something structural changes anywhere in the subtree.
+    // World-space AABB of this piece plus all children
     getWorldAABB() {
-        if (this.cachedAABB && !this.boundsChanged) return this.cachedAABB;
-
-        let bounds = transformBounds(this.asset.bounds, this.pos3d, this.scale);
+        let bounds = transformBounds(this.asset.bounds, this.pos3d, this.scale, this.rotationMatrix);
         for (const child of this.children.values()) {
             bounds = mergeBounds(bounds, child.getWorldAABB());
         }
 
-        this.cachedAABB = bounds;
-        this.boundsChanged = false;
         return bounds;
     }
 
     // Local-space AABB (relative to root's origin, un-rotated), built the same
     // way transformBounds/updateWorldTransform chain position+scale but never applies rotation
     getLocalAABB(originPos = { x: 0, y: 0, z: 0 }, parentScale = 1) {
-        if (this.cachedLocalAABB && !this.boundsChanged) return this.cachedLocalAABB;
-
         const scale = parentScale * this.localScale;
         const pos = this.parent
             ? {
@@ -158,7 +139,6 @@ export class CarPieceInstance extends ModelInstance {
             bounds = mergeBounds(bounds, child.getLocalAABB(pos, scale));
         }
 
-        this.cachedLocalAABB = bounds;
         return bounds;
     }
 

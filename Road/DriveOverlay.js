@@ -108,7 +108,7 @@ export class DriveOverlay extends PIXI.Container {
         this.boostAmount = 1;          // 0..1
         this.boosting = false;
         this.boostDrainPerSecond = 1 / boost_duration;
-        this.boostRefillPerSecond = 1 / (boost_duration * 5);
+        this.boostRefillPerSecond = 1 / (boost_duration * 4);
         this.boostCooldownDuration = 1.5;
         this._cooldownTimer = 0;
         // ---- tutorial tips ----

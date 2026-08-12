@@ -1,16 +1,49 @@
-export function transformBounds(localBounds, worldPos, worldScale) {
-    return {
+import { IDENTITY_MAT3, mat3TransformVec3 } from "./Mat3Utils.js";
+
+export function transformBounds(bounds, pos, scale, rotationMatrix = IDENTITY_MAT3) {
+    const corners = [
+        { x: bounds.min.x, y: bounds.min.y, z: bounds.min.z },
+        { x: bounds.min.x, y: bounds.min.y, z: bounds.max.z },
+        { x: bounds.min.x, y: bounds.max.y, z: bounds.min.z },
+        { x: bounds.min.x, y: bounds.max.y, z: bounds.max.z },
+        { x: bounds.max.x, y: bounds.min.y, z: bounds.min.z },
+        { x: bounds.max.x, y: bounds.min.y, z: bounds.max.z },
+        { x: bounds.max.x, y: bounds.max.y, z: bounds.min.z },
+        { x: bounds.max.x, y: bounds.max.y, z: bounds.max.z },
+    ];
+
+    const first = mat3TransformVec3(rotationMatrix, corners[0]);
+
+    const result = {
         min: {
-            x: worldPos.x + localBounds.min.x * worldScale,
-            y: worldPos.y + localBounds.min.y * worldScale,
-            z: worldPos.z + localBounds.min.z * worldScale,
+            x: pos.x + first.x * scale,
+            y: pos.y + first.y * scale,
+            z: pos.z + first.z * scale,
         },
         max: {
-            x: worldPos.x + localBounds.max.x * worldScale,
-            y: worldPos.y + localBounds.max.y * worldScale,
-            z: worldPos.z + localBounds.max.z * worldScale,
+            x: pos.x + first.x * scale,
+            y: pos.y + first.y * scale,
+            z: pos.z + first.z * scale,
         },
     };
+
+    for (let i = 1; i < corners.length; i++) {
+        const p = mat3TransformVec3(rotationMatrix, corners[i]);
+
+        const x = pos.x + p.x * scale;
+        const y = pos.y + p.y * scale;
+        const z = pos.z + p.z * scale;
+
+        result.min.x = Math.min(result.min.x, x);
+        result.min.y = Math.min(result.min.y, y);
+        result.min.z = Math.min(result.min.z, z);
+
+        result.max.x = Math.max(result.max.x, x);
+        result.max.y = Math.max(result.max.y, y);
+        result.max.z = Math.max(result.max.z, z);
+    }
+
+    return result;
 }
 
 export function mergeBounds(a, b) {

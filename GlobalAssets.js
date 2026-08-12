@@ -9,7 +9,7 @@ export const globalAssetManager = new CarPieceAssetManager();
 
 //any models that are needed in more than 1 scene go here
 export const GLOBAL_MANIFEST = [
-    //{ type: "base",    name: "base_sedan",      path: "assets/models/car/base_sedan.json" },
+    { type: "base",    name: "base_sedan",      path: "assets/models/car/base_sedan.json" },
     { type: "base",    name: "base_audi",      path: "assets/models/car/base_audi.json" },
     { type: "base",    name: "base_bmw",      path: "assets/models/car/base_bmw.json" },
     { type: "base",    name: "base_ford",      path: "assets/models/car/base_ford.json" },
@@ -46,7 +46,20 @@ export const DEFAULT_CAR_CONFIG = {
     },
     properties: {
         speed: 800,
-        boost_time: 2,
+        boost_time: 3,
         boost_value: 1.2
     }
+};
+
+export const ENEMY_CAR_CONFIG = {
+    base: "base_sedan",
+    parts: {
+        socket_tire_FL: "tire_sport",
+        socket_tire_FR: "tire_sport",
+        socket_tire_RL: "tire_sport",
+        socket_tire_RR: "tire_sport",
+    },
+    colors: {
+        base: { base_sedan: 0xaa2222 },
+    },
 };

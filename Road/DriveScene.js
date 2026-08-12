@@ -13,9 +13,11 @@ import { UIScene } from "../Utils/UIScene.js";
 import { LoadingScreen } from "../LoadingScreen.js";
 import { CarManager } from "../Car/CarManager.js";
 import { GAMESTATE } from "../GameState.js";
-import { globalAssetManager, DEFAULT_CAR_CONFIG } from "../GlobalAssets.js";
+import { globalAssetManager, DEFAULT_CAR_CONFIG, ENEMY_CAR_CONFIG } from "../GlobalAssets.js";
 import { computeScaleForWidth, ROT_X_TO_NEGZ, rotationY, rotationZ } from "../Car/CarUtils.js";
 import { mat3Mul } from "../World3D/Utils/Mat3Utils.js";
+import { EnemyCarManager } from "./EnemyCarManager.js";
+import { NotifScreen } from "../NotifScreen.js";
 
 /* Note:
     use https://itch.io/game-assets/free/tag-3d/tag-tree for more models
@@ -227,6 +229,21 @@ export class DriveScene extends UIScene {
         this.playerCar.rotate(ROT_X_TO_NEGZ);
         this.playerCar.repositionToGround();
         this.carVisualPos.y = this.playerCar.pos3d.y;
+        this.playerCar.initWheelState(0.21, 8);
+
+        // Enemy Car
+        this.enemyCarManager = new EnemyCarManager(
+            this.app,
+            this,
+            this.camera,
+            this.carManager,
+            globalAssetManager,
+            ENEMY_CAR_CONFIG,
+            { 
+                carWidth: this.carWidth,
+                maxZ: this.camPos3dStart.z - this.distance
+            }
+        );
 
         this.boost_value = this.playerCar.properties.boost_value;
         this.boost_duration = this.playerCar.properties.boost_time;
@@ -236,19 +253,7 @@ export class DriveScene extends UIScene {
         this.currentSpeed = this.baseSpeed;
         this.speedFollowSpeed = 6.0;
         this.throttle = 0.0;
-
-        //steering
-        this.baseRot = this.playerCar.getRotation();
-        this.rot_tire_FR = this.playerCar.getRotation("socket_tire_FR");
-        this.rot_tire_FL = this.playerCar.getRotation("socket_tire_FL");
-        this.rot_tire_RL = this.playerCar.getRotation("socket_tire_RL");
-        this.rot_tire_RR = this.playerCar.getRotation("socket_tire_RR");
-        this.maxSteeringAngle = 0.21; // ca. 12°
-        this.steeringSpeed = 8;
-        this.steeringAngle = 0;
-        this.steeringTarget = 0;
-        const bounds = this.playerCar.getLocalBounds("socket_tire_FR");
-        this.wheelRadius = (bounds.max.y - bounds.min.y) * 0.5;
+        this.carStopped = false;
 
         //Debug
         this.dDown = false;
@@ -282,9 +287,25 @@ export class DriveScene extends UIScene {
         );
 
         this.driveOverlay = new DriveOverlay(app, this.boost_duration, {
-            onExit: async () => {
-                const scene = await MapScene.create(this.app);
-                SceneStack.pushScene(scene);
+            onExit: () => {
+                this.stopCar();
+                const notif = new NotifScreen(
+                    this.app, 
+                    "LEAVE JOURNEY?\nIf you leave now, you’ll be returned to the last city you visited.",
+                    "LEAVE",
+                    async () => {
+                        SceneStack.popScene();
+                        this.unstopCar();
+                        const scene = await MapScene.create(this.app);
+                        SceneStack.pushScene(scene);
+                    },
+                    "KEEP DRIVING",
+                    () => {
+                        SceneStack.popScene();
+                        this.unstopCar();
+                    },
+                );
+                SceneStack.pushScene(notif, false);
             }
         });
         this.uiScene.addChild(this.driveOverlay);
@@ -308,10 +329,24 @@ export class DriveScene extends UIScene {
         this.objects.destroy();
         this.driveOverlay.destroy();
         this.ground.destroy();
+        this.enemyCarManager.destroy();
         this.carManager.destroy();
     }
 
+    stopCar() {
+        this.currentSpeed = 0;
+        this.targetSpeed = 0;
+        this.carStopped = true;
+    }
+
+    unstopCar() {
+        this.carStopped = false;
+        this.targetSpeed = this.baseSpeed;
+    }
+
     async update(ticker) {
+        if (this.carStopped) return;
+
         //frame indipendant
         const dt = ticker.deltaMS / 1000;
 
@@ -436,35 +471,17 @@ export class DriveScene extends UIScene {
         this.playerCar.setPosition(this.carVisualPos);
 
         //steering rotation for rootPiece and front tires
-        this.steeringTarget = steeringInput * this.maxSteeringAngle;
-        const steeringFollow = 1 - Math.exp(-this.steeringSpeed * dt);
-        this.steeringAngle += (this.steeringTarget - this.steeringAngle) * steeringFollow;
-        const addRot = rotationY(-this.steeringAngle);
-        const steeringRot = rotationY(-this.steeringAngle);
-
-        //wheel rolling * wheel steering
-        const wheelRotation = ((oldCamPosZ - this.camera.pos3d.z) / this.wheelRadius);
-        const rotWheel = rotationZ(-wheelRotation);
-
-        this.rot_tire_FR = mat3Mul(rotWheel, this.rot_tire_FR);
-        this.rot_tire_FL = mat3Mul(rotWheel, this.rot_tire_FL);
-        this.rot_tire_RL = mat3Mul(rotWheel, this.rot_tire_RL);
-        this.rot_tire_RR = mat3Mul(rotWheel, this.rot_tire_RR);
-
-        this.playerCar.setRotation(mat3Mul(this.baseRot, addRot));
-        this.playerCar.setRotation(mat3Mul(steeringRot, this.rot_tire_FR), "socket_tire_FR");
-        this.playerCar.setRotation(mat3Mul(steeringRot, this.rot_tire_FL), "socket_tire_FL");
-        this.playerCar.setRotation(this.rot_tire_RL, "socket_tire_RL");
-        this.playerCar.setRotation(this.rot_tire_RR, "socket_tire_RR");
-
+        const wheelDistanceMoved = oldCamPosZ - this.camera.pos3d.z;
+        this.playerCar.updateWheels(dt, wheelDistanceMoved, steeringInput);
 
         //debug car bounds
         if (window.DEBUG.enabled && window.DEBUG.showCarBounds) {
-            this.playerCar.showDebugOutline(this.debugLayerWorld);
+            this.carManager.showDebugOutlines(this.debugLayerWorld);
         } else {
-            this.playerCar.hideDebugOutline();
+            this.carManager.hideDebugOutlines();
         }
 
+        this.enemyCarManager.update(dt);
 
         //update mountains
         this.mountains.update();

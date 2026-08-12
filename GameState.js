@@ -1,4 +1,6 @@
 import { DEFAULT_CAR_CONFIG } from "./GlobalAssets.js";
+import { NotifScreen } from "./NotifScreen.js";
+import { SceneStack } from "./Utils/SceneStack.js";
 
 // Central, singleton gamestate. Scenes/UI read from this and call its
 // mutator methods instead of touching plain fields directly.
@@ -40,10 +42,26 @@ export class GameState {
         this._notify("money");
     }
 
-    spendMoney(amount) {
-        if (this.money < amount) return false;
+    spendMoney(amount, important = false, app = null, cb = null) {
+        if (this.money < amount){
+            if (!important || !app) return false;
+            const notif = new NotifScreen(
+                app,
+                "DAMN YOUR BROKE!\nHere`s some money for you:\n\nYou got: $5000",
+                "CONTINUE",
+                () => {
+                    GAMESTATE.addMoney(5000);
+                    this.money -= amount;
+                    SceneStack.popScene();
+                    if (cb) cb();
+                }
+            );
+            SceneStack.pushScene(notif, false);
+            return true;
+        }
         this.money -= amount;
         this._notify("money");
+        if (cb) cb();
         return true;
     }
 

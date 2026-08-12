@@ -48,3 +48,22 @@ export function computeScaleForWidth(baseAsset, desiredWorldWidth) {
     }
     return desiredWorldWidth / baseWidth;
 }
+
+
+///@brief shrinks an AABB toward its own center by a given factor: bounds *= factor
+export function shrinkBounds(bounds, factor) {
+    const center = {
+        x: (bounds.min.x + bounds.max.x) * 0.5,
+        y: (bounds.min.y + bounds.max.y) * 0.5,
+        z: (bounds.min.z + bounds.max.z) * 0.5,
+    };
+    const half = {
+        x: (bounds.max.x - bounds.min.x) * 0.5 * factor,
+        y: (bounds.max.y - bounds.min.y) * 0.5 * factor,
+        z: (bounds.max.z - bounds.min.z) * 0.5 * factor,
+    };
+    return {
+        min: { x: center.x - half.x, y: center.y - half.y, z: center.z - half.z },
+        max: { x: center.x + half.x, y: center.y + half.y, z: center.z + half.z },
+    };
+}

@@ -5,19 +5,43 @@ export class CarManager {
         this.layer = layer;
         this.assetManager = assetManager;
 
+        this.debugLayer = null;
+
         this.playerCar = null;
         this.enemyCars = [];
     }
 
     spawnPlayerCar(config, pos3d, scale) {
         this.playerCar = new Car(this.layer, this.assetManager, config, pos3d, scale);
+        if (this.debugLayer != null) {
+            this.playerCar.showDebugOutline(this.debugLayer);
+        }
         return this.playerCar;
     }
 
     spawnEnemyCar(config, pos3d, scale) {
         const car = new Car(this.layer, this.assetManager, config, pos3d, scale);
         this.enemyCars.push(car);
+        if (this.debugLayer != null) {
+            car.showDebugOutline(this.debugLayer);
+        }
         return car;
+    }
+
+    showDebugOutlines(layer) {
+        this.debugLayer = layer;
+        this.playerCar?.showDebugOutline(layer);
+        for (const c of this.enemyCars){
+            c.showDebugOutline(layer);
+        }
+    }
+
+    hideDebugOutlines() {
+        this.debugLayer = null;
+        this.playerCar?.hideDebugOutline();
+        for (const c of this.enemyCars){
+            c.hideDebugOutline();
+        }
     }
 
     destroyCar(car) {

@@ -1,8 +1,12 @@
 import { Object3D } from "../World3D/Object3D.js";
 import { CarPieceInstance } from "./CarPieceInstance.js";
 import { aabbOverlap } from "../World3D/Utils/BoundsUtils.js";
-import { mat3Mul } from "../World3D/Utils/Mat3Utils.js";
 import { DebugOutline } from "../World3D/DebugOutline.js";
+import { computeScaleForWidth, ROT_X_TO_NEGZ, rotationY, rotationZ, shrinkBounds } from "./CarUtils.js";
+import { mat3Mul } from "../World3D/Utils/Mat3Utils.js";
+
+const WHEEL_SOCKETS = ["socket_tire_FR", "socket_tire_FL", "socket_tire_RL", "socket_tire_RR"];
+const FRONT_WHEEL_SOCKETS = new Set(["socket_tire_FR", "socket_tire_FL"]);
 
 function rgbaToHex(rgba) {
     const r = Math.round(rgba[0] * 255);
@@ -12,11 +16,6 @@ function rgbaToHex(rgba) {
 }
 
 // only bases have sockets.
-// objects pivot points:
-// base: center
-// tires: x,y: center, z: min bounds
-// spoiler: 
-
 // config shape:
 // {
 //   base: "sedan_base",
@@ -172,6 +171,8 @@ export class Car extends Object3D {
 
         this.repositionToGround();
         this._refreshDebugShape();
+
+        if (this.wheelSockets) this.initWheelState(this.maxSteeringAngle, this.steeringSpeed);
     }
 
     setPieceMeshColor(pieceKey, meshName, colorHex) {
@@ -287,7 +288,7 @@ export class Car extends Object3D {
     getLocalBounds(piece = null) {
         const target = this._getPiece(piece);
         if (!target) return;
-        return target.getWorldAABB();
+        return target.getLocalAABB();
     }
 
     _calculateGroundPosition() {
@@ -368,14 +369,70 @@ export class Car extends Object3D {
         this._syncDebugTransform();
     }
 
-    checkCollision(otherCars) {
-        const myBounds = this.rootPiece.getWorldAABB();
+    checkCollision(otherCars, hitboxFactor = 0.9) {
+        const myBounds = shrinkBounds(this.rootPiece.getWorldAABB(), hitboxFactor);
         return otherCars.filter(other =>
-            other !== this && aabbOverlap(myBounds, other.rootPiece.getWorldAABB())
+            other !== this && aabbOverlap(myBounds, shrinkBounds(other.rootPiece.getWorldAABB(), hitboxFactor))
         );
     }
 
     destroy() {
+        this.hideDebugOutline();
         this.rootPiece.destroy();
     }
+
+    ///@brief Captures the current rotation as baseline for wheel rolling/steering.
+    ///Call AFTER the car's initial orientation (rotate()) and grounding (repositionToGround()). 
+    // Also call again after replacePart() if a tire piece changed size/shape.
+    initWheelState(maxSteeringAngle = 0.21, steeringSpeed = 8) {
+        this.baseRot = this.getRotation();
+
+        this.wheelSockets = WHEEL_SOCKETS.filter(name => this._getPieceBySocketName(name));
+        this.frontWheelSockets = new Set(this.wheelSockets.filter(name => FRONT_WHEEL_SOCKETS.has(name)));
+
+        this.wheelRotations = {};
+        for (const name of this.wheelSockets) {
+            this.wheelRotations[name] = this.getRotation(name);
+        }
+
+        this.wheelRadius = 0;
+        if (this.wheelSockets.length > 0) {
+            const wheelPiece = this._getPieceBySocketName(this.wheelSockets[0]);
+            const rawBounds = wheelPiece.asset.bounds;
+            this.wheelRadius = (rawBounds.max.y - rawBounds.min.y) * 0.5 * this.scale;
+        }
+
+        this.maxSteeringAngle = maxSteeringAngle;
+        this.steeringSpeed = steeringSpeed;
+        this.steeringAngle = 0;
+        this.steeringTarget = 0;
+    }
+
+    ///@param dt - seconds
+    ///@param distanceMoved - forward world-units traveled this frame (positive = forward), drives wheel roll
+    ///@param steeringInput - -1..1, 0 = geradeaus
+    updateWheels(dt, distanceMoved, steeringInput = 0) {
+        if (!this.wheelSockets || this.wheelSockets.length === 0) return;
+
+        this.steeringTarget = steeringInput * this.maxSteeringAngle;
+        const steeringFollow = 1 - Math.exp(-this.steeringSpeed * dt);
+        this.steeringAngle += (this.steeringTarget - this.steeringAngle) * steeringFollow;
+
+        const bodyRot = rotationY(-this.steeringAngle);
+        const steeringRot = rotationY(-this.steeringAngle);
+
+        const wheelRotation = this.wheelRadius > 0 ? (distanceMoved / this.wheelRadius) : 0;
+        const rotWheel = rotationZ(-wheelRotation);
+
+        for (const name of this.wheelSockets) {
+            this.wheelRotations[name] = mat3Mul(rotWheel, this.wheelRotations[name]);
+            const finalRot = this.frontWheelSockets.has(name)
+                ? mat3Mul(steeringRot, this.wheelRotations[name])
+                : this.wheelRotations[name];
+            this.setRotation(finalRot, name);
+        }
+
+        this.setRotation(mat3Mul(this.baseRot, bodyRot));
+    }
+
 }

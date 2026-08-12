@@ -13,15 +13,23 @@ HTML:
     - might go to fullscreen idk
     - save and load settings
 
+RaceScene -> invest and then money making
+Casino -> straight up gambling your money (ingame)
+ShopScene -> lucky chests for car parts
+QuestScene -> money making, like among us quests or transporting lago between cities
+GasStationScene -> viewing other peoples car (online)
+
 DriveScene:
-    - own Car:
-        - wind effect?
+    - wind effect when driving & fire effect when boosting
     - forest background something
     - better ground texture
     - clouds behind mountain
     - improve transition between horizon and mountainsSprite
-    - add other cars (spawning, collisions, movement (only z), etc.)
     - finish somehow (drive into a city??)
+    - other enemy car model
+    - random enemy car spawning => random patterns spawning so its 100% possible and no cars inside each other
+    - random car configs and colors
+    - make random how many lanes the street has (2..5)
 
     LATER:
     - bioms (+ biom specific surrounding models)
@@ -30,5 +38,4 @@ DriveScene:
 GarageScene:
     - Environment world walls
     - many more car parts and colors
-    - better design for overlay
-    - implement non visual settings. Cars properties like speed, boost_value, boost_time (indirect via engine, turbo)
+    - add 3rd category on the side: upgrades, for engine = aka speed, turbo = aka boost_value & time
