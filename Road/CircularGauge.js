@@ -60,7 +60,7 @@ export class CircularGauge extends PIXI.Container {
 
     setValue(v) {
         this.value = Math.max(0, Math.min(this.maxValue, v));
-        this.valueText.text = Math.round(this.value).toString();
+        this.valueText.text = Math.round(v).toString();
     }
 
     update(dt) {

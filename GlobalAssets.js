@@ -45,9 +45,13 @@ export const DEFAULT_CAR_CONFIG = {
         base: { front_lights: "0xf4e972" }
     },
     properties: {
-        speed: 800,
-        boost_time: 3,
-        boost_value: 1.2
+        speed: { value: 80, increase: 5, level: 0, maxLevel: 20 },
+        //how many s the boost lasts
+        boost_time: { value: 3, increase: 0.5, level: 0, maxLevel: 5 },
+        // speed *= boost_value.value
+        boost_value: { value: 1.5, increase: 0.1, level: 0, maxLevel: 5 },
+        //s it takes to recharge boost
+        boost_cooldown: { value: 8, increase: -0.5, level: 0, maxLevel: 10 },
     }
 };
 
@@ -60,6 +64,9 @@ export const ENEMY_CAR_CONFIG = {
         socket_tire_RR: "tire_sport",
     },
     colors: {
-        base: { base_sedan: 0xaa2222 },
+        base: { 
+            base: 0x000000,
+            detail2: 0x000000
+        },
     },
 };

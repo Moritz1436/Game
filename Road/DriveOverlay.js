@@ -98,7 +98,7 @@ export class DriveOverlay extends PIXI.Container {
 
     ///@param app - PIXI Application
     ///@param callbacks - { onExit }
-    constructor(app, boost_duration, callbacks = {}) {
+    constructor(app, car_properties, callbacks = {}) {
         super();
         this.app = app;
         this.callbacks = callbacks;
@@ -107,8 +107,8 @@ export class DriveOverlay extends PIXI.Container {
         // ---- boost state ----
         this.boostAmount = 1;          // 0..1
         this.boosting = false;
-        this.boostDrainPerSecond = 1 / boost_duration;
-        this.boostRefillPerSecond = 1 / (boost_duration * 4);
+        this.boostDrainPerSecond = 1 / car_properties.boost_time.value;
+        this.boostRefillPerSecond = 1 / car_properties.boost_cooldown.value;
         this.boostCooldownDuration = 1.5;
         this._cooldownTimer = 0;
         // ---- tutorial tips ----

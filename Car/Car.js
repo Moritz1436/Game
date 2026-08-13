@@ -40,7 +40,14 @@ export class Car extends Object3D {
         this.assetManager = assetManager;
         this.scale = scale;
 
-        // stuff like speed, boost_time, boost_value
+        // properties: {
+        //     speed: { value: 80, increase: 5, level: 0, maxLevel: 20 },
+        //     boost_time: { value: 3, increase: 0.5, level: 0, maxLevel: 5 },
+        //     boost_value: { value: 1.5, increase: 0.1, level: 0, maxLevel: 5 },
+        //     boost_cooldown: { value: 8, increase: -0.5, level: 0, maxLevel: 10 },
+        // }
+        // value = current value
+        // increase = value += increase
         this.properties = {};
 
         this.lod = 'high';
@@ -48,6 +55,25 @@ export class Car extends Object3D {
 
         this.importConfig(config);
     }
+
+    ///@brief upgrades a property by one level, if not already maxed. Free (no cost) for now.
+    ///@returns true if upgraded, false if maxLevel reached or property unknown
+    upgradeProperty(key) {
+        const prop = this.properties[key];
+        if (!prop || prop.level >= prop.maxLevel) return false;
+        prop.value += prop.increase;
+        prop.level += 1;
+        return true;
+    }
+
+    ///@returns the value the property would have after the next upgrade, or null if maxed/unknown
+    getPropertyNextValue(key) {
+        const prop = this.properties[key];
+        if (!prop || prop.level >= prop.maxLevel) return null;
+        return prop.value + prop.increase;
+    }
+
+    getWorldAABB() { return this.rootPiece.getWorldAABB(); }
 
     _getPosition() {
         const myBounds = this.rootPiece.getWorldAABB();

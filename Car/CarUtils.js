@@ -40,8 +40,8 @@ export function rotationZ(angle) {
 }
 
 
-export function computeScaleForWidth(baseAsset, desiredWorldWidth) {
-    const baseWidth = baseAsset.size.x;
+export function computeScaleForWidth(baseAsset, desiredWorldWidth, axis = "x") {
+    const baseWidth = baseAsset.size[axis];
     if (baseWidth <= 0) {
         console.warn(`computeScaleForWidth: base asset "${baseAsset.pieceName}" has zero/invalid width, falling back to scale 1`);
         return 1;

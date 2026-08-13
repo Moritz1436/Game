@@ -18,6 +18,7 @@ import { computeScaleForWidth, ROT_X_TO_NEGZ, rotationY, rotationZ } from "../Ca
 import { mat3Mul } from "../World3D/Utils/Mat3Utils.js";
 import { EnemyCarManager } from "./EnemyCarManager.js";
 import { NotifScreen } from "../NotifScreen.js";
+import { WindEffect } from "./WindEffect.js";
 
 /* Note:
     use https://itch.io/game-assets/free/tag-3d/tag-tree for more models
@@ -72,7 +73,8 @@ export class DriveScene extends UIScene {
 
         //static images that the scene uses
         const imageAssets = [
-            "assets/street.png",
+            "assets/lane_side.png",
+            "assets/lane_middle.png",
             "assets/mountains.png",
             "assets/ground.png"
         ];
@@ -199,31 +201,22 @@ export class DriveScene extends UIScene {
         this.roadLayer = new PIXI.Container();
         this.objectLayer = new PIXI.Container();
         this.carLayer = new PIXI.Container();
-        this.overlayLayer = new PIXI.Container();
         this.debugLayerUI = new PIXI.Container();
         this.debugLayerWorld = new PIXI.Container();
 
-        this.world3dScene.addChild(this.mountainLayer);
-        this.world3dScene.addChild(this.groundLayer);
-        this.world3dScene.addChild(this.roadLayer);
-        this.world3dScene.addChild(this.objectLayer);
-        this.world3dScene.addChild(this.carLayer);
-        this.world3dScene.addChild(this.debugLayerWorld);
-        
-        //Background -> Foreground
-        this.uiScene.addChild(this.debugLayerUI);
-        this.uiScene.addChild(this.overlayLayer);
+        //between 2 and 5 lanes
+        this.laneCount = Math.floor(Math.random() * 4) + 2;
 
         //Player Car
-        this.carZOffset = 250; //how many world units the car is infornt of the cam
+        this.carZOffset = 300; //how many world units the car is infornt of the cam
         this.carFollowSpeedX = 7.0;
         this.carFollowSpeedZ = 15.0;
-        this.carWidth = RoadManager.width * 2.0 / 3.0 * 0.7; //world units
+        this.carWidth = RoadManager.laneWidth * 0.8; //world units
         this.carManager = new CarManager(this.carLayer, globalAssetManager);
         const playerCarConfig = GAMESTATE.getCurrentCarConfig();
         this.carVisualPos = { x: 0, y: 0, z: this.camPos3dStart.z - this.carZOffset };
         const baseAsset = globalAssetManager.getAssetByName(playerCarConfig.base);
-        const carScale = computeScaleForWidth(baseAsset, this.carWidth);
+        const carScale = computeScaleForWidth(baseAsset, this.carWidth, "z");
 
         this.playerCar = this.carManager.spawnPlayerCar(playerCarConfig, this.carVisualPos, carScale);
         this.playerCar.rotate(ROT_X_TO_NEGZ);
@@ -241,13 +234,14 @@ export class DriveScene extends UIScene {
             ENEMY_CAR_CONFIG,
             { 
                 carWidth: this.carWidth,
-                maxZ: this.camPos3dStart.z - this.distance
+                maxZ: this.camPos3dStart.z - this.distance,
+                laneCount: this.laneCount
             }
         );
 
-        this.boost_value = this.playerCar.properties.boost_value;
-        this.boost_duration = this.playerCar.properties.boost_time;
-        this.baseSpeed = this.playerCar.properties.speed;
+        this.boost_value = this.playerCar.properties.boost_value.value;
+        this.boost_duration = this.playerCar.properties.boost_time.value;
+        this.baseSpeed = this.playerCar.properties.speed.value * 10;
         // Lazy speed
         this.targetSpeed = this.baseSpeed;
         this.currentSpeed = this.baseSpeed;
@@ -267,7 +261,8 @@ export class DriveScene extends UIScene {
             this.camera,
             this.roadLayer,
             this.debugLayerUI,
-            scaledDistance
+            scaledDistance,
+            { laneCount: this.laneCount }
         );
 
         // mountains
@@ -283,10 +278,11 @@ export class DriveScene extends UIScene {
             this.camera, 
             this.objectLayer,
             scaledDistance,
-            DriveScene.assets
+            DriveScene.assets,
+            this.laneCount
         );
 
-        this.driveOverlay = new DriveOverlay(app, this.boost_duration, {
+        this.driveOverlay = new DriveOverlay(app, this.playerCar.properties, {
             onExit: () => {
                 this.stopCar();
                 const notif = new NotifScreen(
@@ -308,6 +304,23 @@ export class DriveScene extends UIScene {
                 SceneStack.pushScene(notif, false);
             }
         });
+
+        this.windEffect = new WindEffect(app, this.camera, this.playerCar, {
+            count: 30,
+            baseColor: 0x797979,
+            boostColor: 0xffd700,
+        });
+        
+        this.world3dScene.addChild(this.mountainLayer);
+        this.world3dScene.addChild(this.groundLayer);
+        this.world3dScene.addChild(this.roadLayer);
+        this.world3dScene.addChild(this.objectLayer);
+        this.world3dScene.addChild(this.carLayer);
+        this.world3dScene.addChild(this.debugLayerWorld);
+        
+        //Background -> Foreground
+        this.uiScene.addChild(this.debugLayerUI);
+        this.uiScene.addChild(this.windEffect);
         this.uiScene.addChild(this.driveOverlay);
 
         //base background
@@ -331,6 +344,7 @@ export class DriveScene extends UIScene {
         this.ground.destroy();
         this.enemyCarManager.destroy();
         this.carManager.destroy();
+        this.windEffect.destroy();
     }
 
     stopCar() {
@@ -442,8 +456,9 @@ export class DriveScene extends UIScene {
         }
         const oldX = newCamPos.x;
 
-        const minX = (-RoadManager.width + this.playerCar.getLocalBounds().max.x) * 0.5;
-        const maxX = (RoadManager.width - this.playerCar.getLocalBounds().max.x) * 0.5;
+        const roadWidthHalf = RoadManager.computeTotalWidth(this.laneCount) * 0.5;
+        const minX = -roadWidthHalf + this.playerCar.getLocalBounds().max.x * 0.5;
+        const maxX = roadWidthHalf - this.playerCar.getLocalBounds().max.x * 0.5;
 
         newCamPos.x = Math.max(minX, Math.min(newCamPos.x, maxX));
         newCamPos.z = Math.min(newCamPos.z, 0);
@@ -508,6 +523,10 @@ export class DriveScene extends UIScene {
             this.driveOverlay.onBoostEnd();
         }
         this._wasBoostingLastFrame = boostingNow;
+
+        //Wind
+        const speedFactor = Math.min(1, this.currentSpeed / (this.baseSpeed * this.boost_value));
+        this.windEffect.update(dt, speedFactor, this.targetSpeed > this.baseSpeed);
 
         //Overlay
         this.driveOverlay.update(dt);

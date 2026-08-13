@@ -17,7 +17,7 @@ export class GridMesh2D extends Object3D {
     ///@param texCover2d - how the texture should cover the mesh (-1 full cover; any other will be world units until the texture repeats)
     ///@param pos3d - position of the Mesh (center)
     ///@param size2d - size (use .x and .y); y -> z
-    constructor(app, cam, layer, debugLayer, rows, cols, texture, texCover2d, pos3d, size2d) {
+    constructor(app, cam, layer, debugLayer, rows, cols, texture, texCover2d, pos3d, size2d, flipX = false) {
         super(pos3d, {x: size2d.x, y: 0, z: size2d.y});
 
         this.rows = rows;
@@ -58,6 +58,7 @@ export class GridMesh2D extends Object3D {
                     u = (pos3d.x + localX) / this.texLengthX;
                 }
 
+                if (flipX) u = 1 - u;
 
                 if (this.texLengthZ === -1) {
                     v = z / rows;

@@ -32,6 +32,10 @@ function pixelText(str, size, color = COLORS.textLight) {
     return t;
 }
 
+function formatPropValue(v) {
+    return Number.isInteger(v) ? v.toString() : v.toFixed(1);
+}
+
 function drawBox(g, w, h, bg, border, borderWidth) {
     g.clear();
     g.rect(0, 0, w, h).fill(bg);
@@ -207,12 +211,15 @@ export class GarageOverlay extends PIXI.Container {
 
         const wrenchTexture = PIXI.Sprite.from("assets/wrench.png");
         const colorPickerTexture = PIXI.Sprite.from("assets/colorpicker.png");
+        const upgradesTexture = PIXI.Sprite.from("assets/upgrades.png");
 
         this.wrenchButton = this._createModeButton(wrenchTexture, () => this._setMode("parts"));
         this.colorButton = this._createModeButton(colorPickerTexture, () => this._setMode("color"));
+        this.upgradesButton = this._createModeButton(upgradesTexture, () => this._setMode("upgrades"));
 
         this.modeButtonsContainer.addChild(this.wrenchButton);
         this.modeButtonsContainer.addChild(this.colorButton);
+        this.modeButtonsContainer.addChild(this.upgradesButton);
 
         this._refreshModeButtonHighlight();
     }
@@ -241,6 +248,7 @@ export class GarageOverlay extends PIXI.Container {
         this._closeOptions();
         this._closeColorPicker();
         this._refreshModeButtonHighlight();
+        this._updateBottomRow();
         this.layout();
     }
 
@@ -249,6 +257,7 @@ export class GarageOverlay extends PIXI.Container {
         for (const [btn, active] of [
             [this.wrenchButton, this.mode === "parts"],
             [this.colorButton, this.mode === "color"],
+            [this.upgradesButton, this.mode === "upgrades"],
         ]) {
             drawBox(btn._bg, size, size, active ? COLORS.boxBgSelected : COLORS.boxBg, COLORS.boxBorder, Math.max(2, size * 0.06));
         }
@@ -509,6 +518,11 @@ export class GarageOverlay extends PIXI.Container {
     // Untere Reihe – BASE + Socket‑Typen (Kategorien, ohne Auswahl)
     // -----------------------------------------------------------------
     _updateBottomRow() {
+        if (this.mode === "upgrades") {
+            this._updateUpgradesRow();
+            return;
+        }
+
         const baseName = this.carConfigState.data.base;
         const baseAsset = this.assetManager.getAssetByName(baseName);
         this.currentBaseAsset = baseAsset;
@@ -551,6 +565,105 @@ export class GarageOverlay extends PIXI.Container {
             // Base existiert immer, also Options-Reihe aktualisieren
             this._updateOptionsRow("base");
         }
+    }
+
+    _updateUpgradesRow() {
+        this.selectedType = null;
+        this.optionsContainer.visible = false;
+
+        const items = [];
+        for (const [key, prop] of Object.entries(this.car.properties)) {
+            const box = this._createUpgradeBox(this._boxSize, key, prop, () => {
+                if (this.car.upgradeProperty(key)) {
+                    this.carConfigState.data.properties = this.car.properties;
+                    this._updateUpgradesRow();
+                    this.layout();
+                }
+            });
+            items.push(box);
+        }
+
+        this.bottomScroller.setItems(items, this._gap, this._boxSize);
+    }
+
+    _createUpgradeBox(size, key, prop, onClick) {
+        const c = new PIXI.Container();
+        c.eventMode = "static";
+        c.cursor = "pointer";
+        c.width = size;
+        c.height = size;
+
+        const bg = new PIXI.Graphics();
+        c.addChild(bg);
+
+        const label = pixelText(key.replace(/_/g, " ").toUpperCase(), size * 0.13, COLORS.textLight);
+        label.anchor.set(0.5, 0);
+        label.position.set(size / 2, size * 0.08);
+        label.style.wordWrap = true;
+        label.style.wordWrapWidth = size * 0.9;
+        label.style.align = "center";
+        c.addChild(label);
+
+        const isMaxed = prop.level >= prop.maxLevel;
+        const nextValue = this.car.getPropertyNextValue(key);
+        const maxValue = prop.value + prop.increase * (prop.maxLevel - prop.level);
+
+        const currentText = pixelText(formatPropValue(prop.value), size * 0.18, 0xd04040); // red
+        currentText.anchor.set(1, 0.5);
+        c.addChild(currentText);
+
+        let arrowText = null;
+        let nextText = null;
+        let maxValueText = null;
+
+        if (!isMaxed) {
+            arrowText = pixelText("\u2192", size * 0.16, COLORS.textDim);
+            arrowText.anchor.set(0.5, 0.5);
+            c.addChild(arrowText);
+
+            nextText = pixelText(formatPropValue(nextValue), size * 0.18, 0x4caf50); // green
+            nextText.anchor.set(0, 0.5);
+            c.addChild(nextText);
+        } else {
+            nextText = pixelText("MAX", size * 0.15, COLORS.gold);
+            nextText.anchor.set(0.5, 0.5);
+            c.addChild(nextText);
+
+            maxValueText = pixelText(formatPropValue(prop.value), size * 0.14, COLORS.gold);
+            maxValueText.anchor.set(0.5, 0);
+            c.addChild(maxValueText);
+        }
+
+        const valueY = size * 0.55;
+        if (!isMaxed) {
+            currentText.position.set(size * 0.42, valueY);
+            arrowText.position.set(size * 0.5, valueY);
+            nextText.position.set(size * 0.58, valueY);
+        } else {
+            currentText.visible = false;
+            nextText.position.set(size / 2, valueY);
+            maxValueText.position.set(size / 2, valueY + nextText.height * 0.5 + size * 0.01);
+        }
+
+        const levelText = pixelText(`Lv. ${prop.level}/${prop.maxLevel}`, size * 0.14, COLORS.textDim);
+        levelText.anchor.set(0.5, 1);
+        levelText.position.set(size / 2, size * 0.92);
+        c.addChild(levelText);
+
+        function redraw() {
+            drawBox(bg, size, size, isMaxed ? COLORS.boxBg : COLORS.boxBgSelected, COLORS.boxBorder, Math.max(2, size * 0.03));
+        }
+        redraw();
+
+        if (!isMaxed) {
+            c.on("pointerover", () => drawBox(bg, size, size, COLORS.boxBgHover, COLORS.boxBorder, Math.max(2, size * 0.03)));
+            c.on("pointerout", redraw);
+            c.on("pointerdown", () => onClick && onClick());
+        } else {
+            c.cursor = "default";
+        }
+
+        return c;
     }
 
     _closeOptions() {
@@ -701,15 +814,18 @@ export class GarageOverlay extends PIXI.Container {
         // ---- Mode-Buttons (links) ----
         this._modeBtnSize = h * 0.07;
         this._refreshModeButtonHighlight();
-        this.wrenchButton._sprite.width = this._modeBtnSize * 0.6;
-        this.wrenchButton._sprite.height = this._modeBtnSize * 0.6;
-        this.wrenchButton._sprite.position.set(this._modeBtnSize / 2, this._modeBtnSize / 2);
-        this.colorButton._sprite.width = this._modeBtnSize * 0.6;
-        this.colorButton._sprite.height = this._modeBtnSize * 0.6;
-        this.colorButton._sprite.position.set(this._modeBtnSize / 2, this._modeBtnSize / 2);
+        for (const btn of [this.wrenchButton, this.colorButton, this.upgradesButton]) {
+            btn._sprite.width = this._modeBtnSize * 0.6;
+            btn._sprite.height = this._modeBtnSize * 0.6;
+            btn._sprite.position.set(this._modeBtnSize / 2, this._modeBtnSize / 2);
+        }
 
-        this.wrenchButton.position.set(margin, h * 0.5 - this._modeBtnSize - margin * 0.5);
-        this.colorButton.position.set(margin, h * 0.5 + margin * 0.5);
+        const btnGap = margin * 0.5;
+        const totalBtnH = this._modeBtnSize * 3 + btnGap * 2;
+        const startY = h * 0.5 - totalBtnH / 2;
+        this.wrenchButton.position.set(margin, startY);
+        this.colorButton.position.set(margin, startY + this._modeBtnSize + btnGap);
+        this.upgradesButton.position.set(margin, startY + (this._modeBtnSize + btnGap) * 2);
 
         // ---- Untere Reihe ----
         const bottomY = h - rowHeight - margin;

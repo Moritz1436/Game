@@ -182,16 +182,13 @@ class GotoCityScene extends UIScene {
 
         this.city_obj = city;
 
-        const onKeyDown = (e) => {
+        this.onKeyDown = (e) => {
             if (e.key === "Escape") {
                 SceneStack.popScene(this.app);
             }
         };
 
-        window.addEventListener("keydown", onKeyDown);
-        this.uiScene.on("removed", () => {
-            window.removeEventListener("keydown", onKeyDown);
-        });
+        window.addEventListener("keydown", this.onKeyDown);
 
         const bg = new PIXI.Graphics();
         
@@ -387,5 +384,7 @@ class GotoCityScene extends UIScene {
         this.uiScene.addChild(panel);
     }
 
-    destroy() {}
+    destroy() {
+        window.removeEventListener("keydown", this.onKeyDown);
+    }
 }

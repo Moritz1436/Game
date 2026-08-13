@@ -7,13 +7,14 @@ import { ModelInstance } from "../Models/ModelInstance.js";
 // just dont drive through objects, could get ugly lol
 export class ObjectManager {
 
-    constructor(app, camera, layer, distance, assets) {
+    constructor(app, camera, layer, distance, assets, lanes) {
 
         this.app = app;
         this.camera = camera;
         this.layer = layer;
         this.layer.sortableChildren = true;
         this.assets = assets;
+        this.lanes = lanes;
 
         this.chunkLength = 500;
 
@@ -181,7 +182,7 @@ export class ObjectManager {
 
         const halfSize = asset.size.x * scale * 0.5;
 
-        const roadHalf = RoadManager.width * 0.5;
+        const roadHalf = RoadManager.computeTotalWidth(this.lanes) * 0.5;
 
         const x = isLeft
             ? -roadHalf - halfSize - distToRoadX

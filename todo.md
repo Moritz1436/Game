@@ -20,16 +20,13 @@ QuestScene -> money making, like among us quests or transporting lago between ci
 GasStationScene -> viewing other peoples car (online)
 
 DriveScene:
-    - wind effect when driving & fire effect when boosting
     - forest background something
     - better ground texture
     - clouds behind mountain
     - improve transition between horizon and mountainsSprite
     - finish somehow (drive into a city??)
-    - other enemy car model
-    - random enemy car spawning => random patterns spawning so its 100% possible and no cars inside each other
-    - random car configs and colors
-    - make random how many lanes the street has (2..5)
+    - Car spawning, not via waves with 1 empty, but pre made patterns
+    - wind looks ugly
 
     LATER:
     - bioms (+ biom specific surrounding models)
@@ -37,5 +34,5 @@ DriveScene:
 
 GarageScene:
     - Environment world walls
-    - many more car parts and colors
-    - add 3rd category on the side: upgrades, for engine = aka speed, turbo = aka boost_value & time
+    - many more car parts
+    - brakes turn as well on tires ...

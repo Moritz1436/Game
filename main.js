@@ -130,7 +130,8 @@ async function boot(app) {
     const imgs = [
         // GarageOverlay
         "assets/colorpicker.png",
-        "assets/wrench.png"
+        "assets/wrench.png",
+        "assets/upgrades.png",
     ];
     await loadingScreen.run(
         imgs.map(img => async () => {
