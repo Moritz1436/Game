@@ -44,7 +44,10 @@ export class GameState {
 
     spendMoney(amount, important = false, app = null, cb = null) {
         if (this.money < amount){
-            if (!important || !app) return false;
+            if (!important || !app){
+                if (cb) cb(false);
+                return false;
+            }
             const notif = new NotifScreen(
                 app,
                 "DAMN YOUR BROKE!\nHere`s some money for you:\n\nYou got: $5000",
@@ -53,7 +56,7 @@ export class GameState {
                     GAMESTATE.addMoney(5000);
                     this.money -= amount;
                     SceneStack.popScene();
-                    if (cb) cb();
+                    if (cb) cb(true);
                 }
             );
             SceneStack.pushScene(notif, false);
@@ -61,7 +64,7 @@ export class GameState {
         }
         this.money -= amount;
         this._notify("money");
-        if (cb) cb();
+        if (cb) cb(true);
         return true;
     }
 

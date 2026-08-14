@@ -2,8 +2,8 @@ import { Object3D } from "../World3D/Object3D.js";
 import { CarPieceInstance } from "./CarPieceInstance.js";
 import { aabbOverlap } from "../World3D/Utils/BoundsUtils.js";
 import { DebugOutline } from "../World3D/DebugOutline.js";
-import { computeScaleForWidth, ROT_X_TO_NEGZ, rotationY, rotationZ, shrinkBounds } from "./CarUtils.js";
-import { mat3Mul } from "../World3D/Utils/Mat3Utils.js";
+import { computeScaleForWidth, ROT_X_TO_NEGZ, shrinkBounds } from "./CarUtils.js";
+import { rotationY, rotationZ, mat3Mul } from "../World3D/Utils/Mat3Utils.js";
 
 const WHEEL_SOCKETS = ["socket_tire_FR", "socket_tire_FL", "socket_tire_RL", "socket_tire_RR"];
 const FRONT_WHEEL_SOCKETS = new Set(["socket_tire_FR", "socket_tire_FL"]);
@@ -41,10 +41,10 @@ export class Car extends Object3D {
         this.scale = scale;
 
         // properties: {
-        //     speed: { value: 80, increase: 5, level: 0, maxLevel: 20 },
-        //     boost_time: { value: 3, increase: 0.5, level: 0, maxLevel: 5 },
-        //     boost_value: { value: 1.5, increase: 0.1, level: 0, maxLevel: 5 },
-        //     boost_cooldown: { value: 8, increase: -0.5, level: 0, maxLevel: 10 },
+        //     speed: { value: 80, increase: 5, level: 0, maxLevel: 20, cost: 1000 },
+        //     boost_time: { value: 3, increase: 0.5, level: 0, maxLevel: 5, cost: 800 },
+        //     boost_value: { value: 1.5, increase: 0.1, level: 0, maxLevel: 5, cost: 800 },
+        //     boost_cooldown: { value: 8, increase: -0.5, level: 0, maxLevel: 10, cost: 300 },
         // }
         // value = current value
         // increase = value += increase

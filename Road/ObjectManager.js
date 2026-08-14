@@ -2,6 +2,7 @@ import * as PIXI from "pixi.js";
 import { RoadManager } from "./RoadManager.js";
 import { DriveScene } from "./DriveScene.js";
 import { ModelInstance } from "../Models/ModelInstance.js";
+import { rotationY, IDENTITY_MAT3 } from "../World3d/Utils/Mat3Utils.js";
 
 //manages trees, stones, grass etc.
 // just dont drive through objects, could get ugly lol
@@ -26,13 +27,15 @@ export class ObjectManager {
         this.backChunks = 0;
 
         //loading distance in world units in x direction
-        this.loadingDistanceX = 500;
+        this.loadingDistanceX = 300;
 
-        this.objectsPerChunkPerSide = 40;
+        this.objectsPerChunkPerSide = 35;
 
         this.loadedChunks = new Map();
         this.creationQueue = [];
         this.maxCreationsPerFrame = 20;
+
+        this.forestWallDistanceX = this.loadingDistanceX + 50;
     }
 
     update() {
@@ -244,7 +247,6 @@ export class ObjectManager {
 
     destroyInstances(chunk) {
         for (const obj of chunk.objects) {
-
             if (obj.instance) {
                 obj.instance.destroy();
                 obj.instance = null;
@@ -252,6 +254,25 @@ export class ObjectManager {
         }
 
         this.creationQueue = this.creationQueue.filter(entry => entry.chunk !== chunk);
+    }
+
+    createForestWall(id, isLeft) {
+        const asset = this.assets.forest.low[0];
+        if (!asset) {
+            console.warn(`ObjectManager: assets.forest.low[0] nicht gefunden - Forest-Wall wird übersprungen.`);
+            return null;
+        }
+
+        const roadHalf = RoadManager.computeTotalWidth(this.lanes) * 0.5;
+        const x = isLeft
+            ? -roadHalf - this.forestWallDistanceX
+            :  roadHalf + this.forestWallDistanceX;
+
+        const z = -id * this.chunkLength - this.chunkLength * 0.5; // Chunk-Mitte
+
+        const rotation = isLeft ? IDENTITY_MAT3 : rotationY(Math.PI);
+
+        return new ModelInstance(asset, this.layer, { x, y: 0, z }, 37.5, rotation);
     }
 
     loadChunk(id, lod) {
@@ -262,7 +283,10 @@ export class ObjectManager {
             objects.push(this.createObject(id, false));
         }
 
-        const chunk = { id, lod, objects };
+        const forestWallLeft = this.createForestWall(id, true);
+        const forestWallRight = this.createForestWall(id, false);
+
+        const chunk = { id, lod, objects, forestWallLeft, forestWallRight };
         this.loadedChunks.set(id, chunk);
         this.queueInstanceCreation(chunk);
     }
@@ -272,6 +296,10 @@ export class ObjectManager {
         if (!chunk) return;
 
         this.destroyInstances(chunk);
+
+        if (chunk.forestWallLeft) chunk.forestWallLeft.destroy();
+        if (chunk.forestWallRight) chunk.forestWallRight.destroy();
+
         this.loadedChunks.delete(id);
     }
 

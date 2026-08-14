@@ -10,8 +10,20 @@ export class CarConfigState {
             base: initialConfig.base,
             parts: { ...(initialConfig.parts ?? {}) },
             colors: structuredClone(initialConfig.colors ?? {}),
-            properties: initialConfig.properties ?? {}
+            properties: initialConfig.properties ?? {},
+            unlockedParts: initialConfig.unlockedParts ?? []
         };
+    }
+
+    isPartUnlocked(pieceName) {
+        return this.data.unlockedParts?.includes(pieceName) ?? false;
+    }
+
+    unlockPart(pieceName) {
+        if (!this.data.unlockedParts) this.data.unlockedParts = [];
+        if (!this.data.unlockedParts.includes(pieceName)) {
+            this.data.unlockedParts.push(pieceName);
+        }
     }
 
     setBase(pieceName) {

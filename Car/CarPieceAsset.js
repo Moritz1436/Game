@@ -1,5 +1,6 @@
 import { ModelLoader } from "../Models/ModelLoader.js";
 import { ModelAsset } from "../Models/ModelAsset.js";
+import { PART_DEFAULT_COST } from "../GlobalAssets.js";
 
 /* JSON shape:
 
@@ -53,6 +54,7 @@ export class CarPieceAsset extends ModelAsset {
         super(data); // meshes + sockets (sockets come from named Empty nodes, see Converter.py)
         this.type = type;
         this.pieceName = pieceName;
+        this.price = data.price ?? PART_DEFAULT_COST;
     }
 
     static load(path, type, pieceName) {

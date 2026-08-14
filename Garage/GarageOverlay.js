@@ -3,6 +3,9 @@ import { GAMESTATE } from "../GameState";
 import { HorizontalScroller } from "./HorizonalScroller.js";
 import { HSVColorPicker } from "./HSVColorPicker.js";
 import { hexToRgb, rgbToHex, rgbToHsv, hsvToRgb } from "./HSVColorPicker.js";
+import { COLOR_CHANGE_COST } from "../GlobalAssets.js";
+import { NotifScreen } from "../NotifScreen.js";
+import { SceneStack } from "../Utils/SceneStack.js";
 
 const COLORS = {
     panelBg: 0x2b2b2b,
@@ -393,15 +396,15 @@ export class GarageOverlay extends PIXI.Container {
     // Farbwähler öffnen/schließen
     // -----------------------------------------------------------------
     _openColorPickerFor(type, meshName, baseAsset, currentHex, boxRef) {
-        this.colorPickerTarget = { type, meshName, baseAsset, boxRef };
+        this.colorPickerTarget = { type, meshName, baseAsset, boxRef, originalHex: currentHex, previewHex: currentHex };
 
         if (!this.colorPicker) {
             this.colorPicker = new HSVColorPicker(
-                this._boxSize * 3, 
+                this._boxSize * 3,
                 (hex) => {
                     const t = this.colorPickerTarget;
                     if (!t) return;
-                    this.carConfigState.setMeshColor(t.type, t.meshName, hex);
+                    t.previewHex = hex;
                     const pieces = t.type === "base" ? [this.car.rootPiece] : this.car.getPiecesByType(t.type);
                     for (const piece of pieces) {
                         piece.setMeshBaseColor(t.meshName, hex);
@@ -415,29 +418,38 @@ export class GarageOverlay extends PIXI.Container {
         const savedHex = this.carConfigState.getMeshColor(type, meshName) ?? currentHex;
         this.colorPicker.setColorHex(savedHex);
 
-        // Click-Catcher aktivieren
         this.colorPickerOutside.visible = true;
         this.colorPickerOutside.clear();
         this.colorPickerOutside
-            .rect(
-                0,
-                0,
-                this.app.renderer.width,
-                this.app.renderer.height
-            )
+            .rect(0, 0, this.app.renderer.width, this.app.renderer.height)
             .fill({ color: 0x000000, alpha: 0.001 });
 
-        // Klick außerhalb schließt
         this.colorPickerOutside.off("pointerdown");
-        this.colorPickerOutside.on("pointerdown", () => {
-            this._closeColorPicker();
-        });
+        this.colorPickerOutside.on("pointerdown", () => this._closeColorPicker());
 
         this.colorPickerPanel.visible = true;
         this.layout();
     }
 
     _closeColorPicker() {
+        const t = this.colorPickerTarget;
+
+        if (t && t.previewHex !== t.originalHex) {
+            GAMESTATE.spendMoney(COLOR_CHANGE_COST, false, this.app, (success) => {
+                const pieces = t.type === "base" ? [this.car.rootPiece] : this.car.getPiecesByType(t.type);
+
+                if (success) {
+                    this.carConfigState.setMeshColor(t.type, t.meshName, t.previewHex);
+                    t.boxRef._updateSwatch(t.previewHex);
+                } else {
+                    // Kauf fehlgeschlagen -> Preview zurücksetzen
+                    for (const piece of pieces) piece.setMeshBaseColor(t.meshName, t.originalHex);
+                    t.boxRef._updateSwatch(t.originalHex);
+                    this._createNoMoneyScreen();
+                }
+            });
+        }
+
         this.colorPickerTarget = null;
         this.colorPickerPanel.visible = false;
         this.colorPickerOutside.visible = false;
@@ -574,11 +586,18 @@ export class GarageOverlay extends PIXI.Container {
         const items = [];
         for (const [key, prop] of Object.entries(this.car.properties)) {
             const box = this._createUpgradeBox(this._boxSize, key, prop, () => {
-                if (this.car.upgradeProperty(key)) {
-                    this.carConfigState.data.properties = this.car.properties;
-                    this._updateUpgradesRow();
-                    this.layout();
-                }
+                const cost = prop.cost ?? 0;
+                GAMESTATE.spendMoney(cost, false, this.app, (success) => {
+                    if (!success){
+                        this._createNoMoneyScreen();
+                        return;
+                    }
+                    if (this.car.upgradeProperty(key)) {
+                        this.carConfigState.data.properties = this.car.properties;
+                        this._updateUpgradesRow();
+                        this.layout();
+                    }
+                });
             });
             items.push(box);
         }
@@ -650,6 +669,13 @@ export class GarageOverlay extends PIXI.Container {
         levelText.position.set(size / 2, size * 0.92);
         c.addChild(levelText);
 
+        if (!isMaxed) {
+            const priceText = pixelText(`$${prop.cost ?? 0}`, size * 0.12, COLORS.gold);
+            priceText.anchor.set(0.5, 1);
+            priceText.position.set(size / 2, size * 0.82);
+            c.addChild(priceText);
+        }
+
         function redraw() {
             drawBox(bg, size, size, isMaxed ? COLORS.boxBg : COLORS.boxBgSelected, COLORS.boxBorder, Math.max(2, size * 0.03));
         }
@@ -705,12 +731,73 @@ export class GarageOverlay extends PIXI.Container {
         }
 
         for (const asset of availableAssets) {
-            const box = createSelectableBox(this._boxSize, asset.pieceName, () => this._onOptionClick(type, asset));
-            box.setSelected(asset.pieceName === currentPieceName);
+            const unlocked = this.carConfigState.isPartUnlocked(asset.pieceName);
+            const box = unlocked
+                ? createSelectableBox(this._boxSize, asset.pieceName, () => this._onOptionClick(type, asset))
+                : this._createLockedPartBox(this._boxSize, asset, () => this._onLockedPartClick(type, asset));
+            if (unlocked) box.setSelected(asset.pieceName === currentPieceName);
             items.push(box);
         }
 
         this.optionsScroller.setItems(items, this._gap, this._boxSize);
+    }
+
+    _createNoMoneyScreen() {
+        const scene = new NotifScreen(this.app, "WARNING!\nYou don't have enough money to buy this.", "OK", () => {
+            SceneStack.popScene();
+        });
+        SceneStack.pushScene(scene, false);
+    }
+
+    _createLockedPartBox(size, asset, onClick) {
+        const c = new PIXI.Container();
+        c.eventMode = "static";
+        c.cursor = "pointer";
+        c.width = size;
+        c.height = size;
+
+        const bg = new PIXI.Graphics();
+        c.addChild(bg);
+
+        const lockIcon = pixelText("\u{1F512}", size * 0.22, COLORS.textDim);
+        lockIcon.anchor.set(0.5);
+        lockIcon.position.set(size / 2, size * 0.35);
+        c.addChild(lockIcon);
+
+        const txt = pixelText(asset.pieceName, size * 0.13, COLORS.textLight);
+        txt.anchor.set(0.5, 0);
+        txt.position.set(size / 2, size * 0.55);
+        txt.style.wordWrap = true;
+        txt.style.wordWrapWidth = size * 0.9;
+        txt.style.align = "center";
+        c.addChild(txt);
+
+        const priceText = pixelText(`$${asset.price ?? 0}`, size * 0.14, COLORS.gold);
+        priceText.anchor.set(0.5, 1);
+        priceText.position.set(size / 2, size * 0.92);
+        c.addChild(priceText);
+
+        function redraw() {
+            drawBox(bg, size, size, COLORS.boxBg, COLORS.boxBorder, Math.max(2, size * 0.03));
+        }
+        redraw();
+
+        c.on("pointerover", () => drawBox(bg, size, size, COLORS.boxBgHover, COLORS.boxBorder, Math.max(2, size * 0.03)));
+        c.on("pointerout", redraw);
+        c.on("pointerdown", () => onClick && onClick());
+
+        return c;
+    }
+
+    _onLockedPartClick(type, asset) {
+        GAMESTATE.spendMoney(asset.price ?? 0, false, this.app, (success) => {
+            if (!success){
+                this._createNoMoneyScreen();
+                return;
+            }
+            this.carConfigState.unlockPart(asset.pieceName);
+            this._onOptionClick(type, asset);
+        });
     }
 
     // -----------------------------------------------------------------

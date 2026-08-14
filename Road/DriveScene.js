@@ -14,8 +14,8 @@ import { LoadingScreen } from "../LoadingScreen.js";
 import { CarManager } from "../Car/CarManager.js";
 import { GAMESTATE } from "../GameState.js";
 import { globalAssetManager, DEFAULT_CAR_CONFIG, ENEMY_CAR_CONFIG } from "../GlobalAssets.js";
-import { computeScaleForWidth, ROT_X_TO_NEGZ, rotationY, rotationZ } from "../Car/CarUtils.js";
-import { mat3Mul } from "../World3D/Utils/Mat3Utils.js";
+import { computeScaleForWidth, ROT_X_TO_NEGZ } from "../Car/CarUtils.js";
+import { mat3Mul, rotationY, rotationZ } from "../World3D/Utils/Mat3Utils.js";
 import { EnemyCarManager } from "./EnemyCarManager.js";
 import { NotifScreen } from "../NotifScreen.js";
 import { WindEffect } from "./WindEffect.js";
@@ -135,6 +135,11 @@ export class DriveScene extends UIScene {
                     "Bush3_med",
                     "Bush4_med"
                 ]
+            },
+            forest: {
+                low: [ 
+                    "forest" 
+                ]
             }
         };
 
@@ -142,7 +147,8 @@ export class DriveScene extends UIScene {
             trees: { high: [], medium: [], low: [] },
             rocks: { high: [], medium: [] },
             grass: { high: [] },
-            bushes: { high: [], medium: [] }
+            bushes: { high: [], medium: [] },
+            forest: { low: [] }
         };
 
         const tasks = [];
@@ -460,8 +466,10 @@ export class DriveScene extends UIScene {
         const minX = -roadWidthHalf + this.playerCar.getLocalBounds().max.x * 0.5;
         const maxX = roadWidthHalf - this.playerCar.getLocalBounds().max.x * 0.5;
 
-        newCamPos.x = Math.max(minX, Math.min(newCamPos.x, maxX));
-        newCamPos.z = Math.min(newCamPos.z, 0);
+        if (!window.DEBUG.enabled) {
+            newCamPos.x = Math.max(minX, Math.min(newCamPos.x, maxX));
+            newCamPos.z = Math.min(newCamPos.z, 0);
+        }
         this.camera.pos3d = newCamPos;
 
         if (oldX !== newCamPos.x) steeringInput = 0;

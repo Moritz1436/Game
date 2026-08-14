@@ -1,4 +1,5 @@
-import { computeScaleForWidth, ROT_X_TO_NEGZ, rotationY, rotationZ } from "../Car/CarUtils.js";
+import { computeScaleForWidth, ROT_X_TO_NEGZ } from "../Car/CarUtils.js";
+import { rotationY, rotationZ } from "../World3D/Utils/Mat3Utils.js";
 import { RoadManager } from "./RoadManager.js";
 import { NotifScreen } from "../NotifScreen.js";
 import { SceneStack } from "../Utils/SceneStack.js";

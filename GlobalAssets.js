@@ -45,14 +45,19 @@ export const DEFAULT_CAR_CONFIG = {
         base: { front_lights: "0xf4e972" }
     },
     properties: {
-        speed: { value: 80, increase: 5, level: 0, maxLevel: 20 },
+        speed: { value: 80, increase: 5, level: 0, maxLevel: 20, cost: 1000 },
         //how many s the boost lasts
-        boost_time: { value: 3, increase: 0.5, level: 0, maxLevel: 5 },
+        boost_time: { value: 3, increase: 0.5, level: 0, maxLevel: 5, cost: 800 },
         // speed *= boost_value.value
-        boost_value: { value: 1.5, increase: 0.1, level: 0, maxLevel: 5 },
+        boost_value: { value: 1.5, increase: 0.1, level: 0, maxLevel: 5, cost: 800 },
         //s it takes to recharge boost
-        boost_cooldown: { value: 8, increase: -0.5, level: 0, maxLevel: 10 },
-    }
+        boost_cooldown: { value: 8, increase: -0.5, level: 0, maxLevel: 10, cost: 300 },
+    },
+    unlockedParts: [
+        "base_bmw",
+        "tire_wide",
+        "spoiler_bmw",
+    ]
 };
 
 export const ENEMY_CAR_CONFIG = {
@@ -70,3 +75,6 @@ export const ENEMY_CAR_CONFIG = {
         },
     },
 };
+
+export const COLOR_CHANGE_COST = 500;
+export const PART_DEFAULT_COST = 1000;
