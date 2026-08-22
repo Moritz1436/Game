@@ -78,3 +78,5 @@ export const ENEMY_CAR_CONFIG = {
 
 export const COLOR_CHANGE_COST = 500;
 export const PART_DEFAULT_COST = 1000;
+
+export const MAP_SEED = 283319;

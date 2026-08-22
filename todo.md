@@ -1,10 +1,13 @@
 
 
 MapScene:
-    - Nonkki
-    - rework in general
-    - restructure code into a class that extends PIXI.Container with a static func create for 
-        async init work and constructor for construction of the view
+    - global state what city im in (via city pos?)
+    - display the city your in and if your in the city you can go to a feature specific screen, otherwise just drivescreen
+    - overlay for city im in, money and other
+    - check what cities im allowed to drive to
+    - calc distance to drive to a city
+
+    - more bioms (more forest types, ice, jungle) + specific things like trees, flowers
 
 Rendering:
     - maybe get some kind of lightsource so car_lights can shine a little
@@ -12,6 +15,7 @@ Rendering:
 HTML:
     - might go to fullscreen idk
     - save and load settings
+    - profile
 
 RaceScene -> invest and then money making
 Casino -> straight up gambling your money (ingame)
@@ -20,7 +24,6 @@ QuestScene -> money making, like among us quests or transporting lago between ci
 GasStationScene -> viewing other peoples car (online)
 
 DriveScene:
-    - forest background something
     - better ground texture
     - clouds behind mountain
     - improve transition between horizon and mountainsSprite
@@ -36,3 +39,4 @@ GarageScene:
     - Environment world walls
     - many more car parts
     - brakes turn as well on tires ...
+    - upgrades ausgrauen wenn nicht genug geld

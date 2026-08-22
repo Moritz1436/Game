@@ -13,9 +13,8 @@ import { UIScene } from "../Utils/UIScene.js";
 import { LoadingScreen } from "../LoadingScreen.js";
 import { CarManager } from "../Car/CarManager.js";
 import { GAMESTATE } from "../GameState.js";
-import { globalAssetManager, DEFAULT_CAR_CONFIG, ENEMY_CAR_CONFIG } from "../GlobalAssets.js";
+import { globalAssetManager, MAP_SEED, ENEMY_CAR_CONFIG } from "../GlobalAssets.js";
 import { computeScaleForWidth, ROT_X_TO_NEGZ } from "../Car/CarUtils.js";
-import { mat3Mul, rotationY, rotationZ } from "../World3D/Utils/Mat3Utils.js";
 import { EnemyCarManager } from "./EnemyCarManager.js";
 import { NotifScreen } from "../NotifScreen.js";
 import { WindEffect } from "./WindEffect.js";
@@ -298,7 +297,7 @@ export class DriveScene extends UIScene {
                     async () => {
                         SceneStack.popScene();
                         this.unstopCar();
-                        const scene = await MapScene.create(this.app);
+                        const scene = await MapScene.create(this.app, MAP_SEED);
                         SceneStack.pushScene(scene);
                     },
                     "KEEP DRIVING",

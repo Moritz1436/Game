@@ -88,6 +88,7 @@ export class LoadingScreen extends UIScene {
         for (let i = 0; i < tasks.length; i++) {
             const label = labels?.[i] ?? `Loading... (${i + 1}/${tasks.length})`;
             this.setProgress(i / tasks.length, label);
+            await new Promise(requestAnimationFrame);
             await tasks[i]();
         }
         onComplete && onComplete();

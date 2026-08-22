@@ -4,8 +4,7 @@ import { Input } from "./Utils/Input.js";
 import { MapScene } from "./Map/MapScene.js";
 import { GAMESTATE } from "./GameState.js";
 import { LoadingScreen } from "./LoadingScreen.js";
-import { ModelLoader } from "./Models/ModelLoader.js";
-import { GLOBAL_MANIFEST, loadGlobalAssetEntry, DEFAULT_CAR_CONFIG } from "./GlobalAssets.js";
+import { GLOBAL_MANIFEST, loadGlobalAssetEntry, MAP_SEED } from "./GlobalAssets.js";
 
 /////////// GLOBALS //////////////
 const resolution = 9/16;
@@ -42,6 +41,8 @@ export function getHeight() {
         backgroundColor: 0x222222, 
         antialias:false,
         powerPreference: "high-performance",
+        resolution: window.devicePixelRatio || 1,
+        autoDensity: true,
         depth: true
     });
     app.ticker.remove(app.render, app);
@@ -144,6 +145,6 @@ async function boot(app) {
     GAMESTATE.loadState();
 
     // Start Scene
-    const mapScene = await MapScene.create(app, loadingScreen);
+    const mapScene = await MapScene.create(app, MAP_SEED, loadingScreen);
     SceneStack.pushScene(mapScene);
 }
