@@ -1,11 +1,8 @@
 
 
 MapScene:
-    - global state what city im in (via city pos?)
-    - display the city your in and if your in the city you can go to a feature specific screen, otherwise just drivescreen
     - overlay for city im in, money and other
     - check what cities im allowed to drive to
-    - calc distance to drive to a city
 
     - more bioms (more forest types, ice, jungle) + specific things like trees, flowers
 
@@ -39,4 +36,3 @@ GarageScene:
     - Environment world walls
     - many more car parts
     - brakes turn as well on tires ...
-    - upgrades ausgrauen wenn nicht genug geld

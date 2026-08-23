@@ -608,7 +608,6 @@ export class GarageOverlay extends PIXI.Container {
     _createUpgradeBox(size, key, prop, onClick) {
         const c = new PIXI.Container();
         c.eventMode = "static";
-        c.cursor = "pointer";
         c.width = size;
         c.height = size;
 
@@ -624,8 +623,10 @@ export class GarageOverlay extends PIXI.Container {
         c.addChild(label);
 
         const isMaxed = prop.level >= prop.maxLevel;
+        const cost = prop.cost ?? 0;
+        const canAfford = isMaxed || GAMESTATE.money >= cost;
+
         const nextValue = this.car.getPropertyNextValue(key);
-        const maxValue = prop.value + prop.increase * (prop.maxLevel - prop.level);
 
         const currentText = pixelText(formatPropValue(prop.value), size * 0.18, 0xd04040); // red
         currentText.anchor.set(1, 0.5);
@@ -670,23 +671,30 @@ export class GarageOverlay extends PIXI.Container {
         c.addChild(levelText);
 
         if (!isMaxed) {
-            const priceText = pixelText(`$${prop.cost ?? 0}`, size * 0.12, COLORS.gold);
+            const priceColor = canAfford ? COLORS.gold : 0xd04040;
+            const priceText = pixelText(`$${cost}`, size * 0.12, priceColor);
             priceText.anchor.set(0.5, 1);
             priceText.position.set(size / 2, size * 0.82);
             c.addChild(priceText);
         }
 
+        const isLocked = isMaxed || !canAfford;
+
         function redraw() {
-            drawBox(bg, size, size, isMaxed ? COLORS.boxBg : COLORS.boxBgSelected, COLORS.boxBorder, Math.max(2, size * 0.03));
+            drawBox(bg, size, size, isLocked ? COLORS.boxBg : COLORS.boxBgSelected, COLORS.boxBorder, Math.max(2, size * 0.03));
         }
         redraw();
 
-        if (!isMaxed) {
+        if (!isLocked) {
+            c.cursor = "pointer";
             c.on("pointerover", () => drawBox(bg, size, size, COLORS.boxBgHover, COLORS.boxBorder, Math.max(2, size * 0.03)));
             c.on("pointerout", redraw);
             c.on("pointerdown", () => onClick && onClick());
         } else {
             c.cursor = "default";
+            if (!isMaxed) {
+                c.on("pointerdown", () => onClick && onClick());
+            }
         }
 
         return c;

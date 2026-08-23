@@ -7,8 +7,11 @@ export const SEA_PATCH_SCALE = 900;    // grosse Gewaesser (px)
 export const POND_PATCH_SCALE = 420;   // kleine Teiche/Seen (px)
 
 export const CHUNK_SIZE = 512;
-export const FULL_W = 8192;
-export const FULL_H = 8192;
+export const FULL_W = 16384;
+export const FULL_H = 16384;
+
+export const CITIES_PER_CHUNK_MIN = 0.117;
+export const CITIES_PER_CHUNK_MAX = 0.234;
 
 const TERRAIN_PIXELS_PER_CHUNK = 128;
 const chunksAcrossX = FULL_W / CHUNK_SIZE;

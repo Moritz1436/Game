@@ -1,13 +1,11 @@
-import { FULL_W, FULL_H, NOISE_SCALE, mulberry32, makeHash, fbm, smoothstepRange, clamp01, PIXEL_WARP_SCALE, PIXEL_WARP_AMOUNT, SEA_PATCH_SCALE, POND_PATCH_SCALE, BIOME_PATCH_SCALE } from "./Utils.js";
+import { FULL_W, FULL_H, NOISE_SCALE, mulberry32, makeHash, fbm, smoothstepRange, clamp01, PIXEL_WARP_SCALE, 
+    PIXEL_WARP_AMOUNT, SEA_PATCH_SCALE, POND_PATCH_SCALE, BIOME_PATCH_SCALE, CHUNK_SIZE, CITIES_PER_CHUNK_MIN, 
+    CITIES_PER_CHUNK_MAX } from "./Utils.js";
 import { CITY_PALETTES, CITY_FEATURES } from "./Palette.js";
 
 export class World {
     constructor(seed) {
-        this.seed = seed; // NEU: wurde vorher nirgends gespeichert. WorldChunk
-        // ruft aber hashSeed(world.seed, cx, cy) auf - world.seed war also
-        // immer undefined (-> als 0 interpretiert), wodurch die Vegetations-
-        // verteilung pro Chunk NIE vom eigentlichen Karten-Seed abhing,
-        // sondern fuer jeden Seed identisch war. Echter Bug, jetzt gefixt.
+        this.seed = seed;
         this.rand = mulberry32(seed);
 
         this.hLand = makeHash(seed + 1);
@@ -21,22 +19,19 @@ export class World {
         this.hRock = makeHash(seed + 9);
         this.hCity = makeHash(seed + 10);
         this.hRoad = makeHash(seed + 11);
-
-        // Gebirge/Wueste/Seen/Inseln bleiben im festen Noise-Referenzraum
-        // (0..1 relativ zu NOISE_SCALE) verankert - absolute Groesse bleibt
-        // dadurch unabhaengig von FULL_W/FULL_H konstant.
-        const mtAngle = this.rand() * Math.PI * 2;
-        const mtDist = 0.10 + this.rand() * 0.60;
-
-        this.hRoad = makeHash(seed + 11);
         this.hWater = makeHash(seed + 12);
         this.hPond = makeHash(seed + 13);
 
+        const chunksX = Math.ceil(FULL_W / CHUNK_SIZE);
+        const chunksY = Math.ceil(FULL_H / CHUNK_SIZE);
+        const totalChunks = chunksX * chunksY;
+        const cityDensity = CITIES_PER_CHUNK_MIN + this.rand() * (CITIES_PER_CHUNK_MAX - CITIES_PER_CHUNK_MIN);
+        const cityCount = Math.max(1, Math.round(totalChunks * cityDensity));
 
-        const cityCount = 30 + Math.floor(this.rand() * 30);
         this.cities = [];
         let attempts = 0;
-        while (this.cities.length < cityCount && attempts < 5000) {
+        const maxAttempts = cityCount * 150;
+        while (this.cities.length < cityCount && attempts < maxAttempts) {
             attempts++;
             const cx = FULL_W * 0.14 + this.rand() * FULL_W * 0.72;
             const cy = FULL_H * 0.14 + this.rand() * FULL_H * 0.72;

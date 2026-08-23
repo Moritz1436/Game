@@ -399,3 +399,7 @@ export function isBlocked(world, mask, px, py) {
     const noise = fbm(world.hCity, nx0 * 26 + 17, ny0 * 26 + 17, 2, 0.07, 0.5, 2.0);
     return noise > edgeT;
 }
+
+export function cityDistance(cityA, cityB) {
+    return Math.hypot(cityA.cx - cityB.cx, cityA.cy - cityB.cy);
+}

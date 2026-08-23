@@ -85,6 +85,7 @@ export class LoadingScreen extends UIScene {
     ///@param onComplete - called after every task finished
     ///@param labels - optional array of display labels matching tasks, same length
     async run(tasks, onComplete, labels) {
+        await new Promise(requestAnimationFrame);
         for (let i = 0; i < tasks.length; i++) {
             const label = labels?.[i] ?? `Loading... (${i + 1}/${tasks.length})`;
             this.setProgress(i / tasks.length, label);

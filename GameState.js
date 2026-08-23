@@ -12,11 +12,48 @@ export class GameState {
         this.ownedCars = [];
         this.activeCarIndex = 0;
 
-        //add current city here later
+        this.currentCityIndex = null; //idx in city array
+        this.cityFeatureOverrides = {}; // { [cityIndex]: { feature: string|null, respawnAt: number|null } }
 
         this.showTips = false;
 
         this._listeners = new Set();
+    }
+
+    completeCityFeature(cityIndex, cooldownMs = 2 * 60 * 1000) {
+        this.cityFeatureOverrides[cityIndex] = {
+            feature: null,
+            respawnAt: Date.now() + cooldownMs,
+        };
+    }
+
+    applyCityFeatureOverrides(cities) {
+        const now = Date.now();
+        for (let i = 0; i < cities.length; i++) {
+            const override = this.cityFeatureOverrides[i];
+            if (!override) continue;
+
+            const canRespawn = override.feature === null
+                && override.respawnAt != null
+                && now >= override.respawnAt;
+
+            if (canRespawn) {
+                const newFeature = CITY_FEATURES[Math.floor(Math.random() * CITY_FEATURES.length)];
+                override.feature = newFeature;
+                override.respawnAt = null;
+                cities[i].feature = newFeature;
+            } else {
+                cities[i].feature = override.feature;
+            }
+        }
+    }
+
+    setCurrentCity(cityIdx){
+        this.currentCityIndex = cityIdx;
+    }
+
+    clearCurrentCity() {
+        this.currentCityIndex = null;
     }
 
     setShowTips(v) {
@@ -83,7 +120,9 @@ export class GameState {
         return {
             money: this.money,
             ownedCars: this.ownedCars,
-            activeCarIndex: this.activeCarIndex
+            activeCarIndex: this.activeCarIndex,
+            showTips: this.showTips,
+            city: this.currentCityIndex,
         };
     }
 
@@ -92,6 +131,7 @@ export class GameState {
         this.ownedCars = data.ownedCars ?? [];
         this.activeCarIndex = data.activeCarIndex ?? 0;
         this.showTips = data.showTips;
+        this.currentCityIndex = data.city;
         this._notify("all");
     }
 
@@ -105,6 +145,7 @@ export class GameState {
             ownedCars: [ DEFAULT_CAR_CONFIG ],
             activeCarIndex: 0,
             showTips: true,
+            city: 0,
         }
 
         this.importSave(data);

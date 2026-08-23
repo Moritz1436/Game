@@ -3,18 +3,15 @@ import { Camera } from "../World3D/Camera.js";
 import { GridMesh2D } from "../World3D/GridMesh2D.js";
 import { Input } from "../Utils/Input.js";
 import { OrbitCameraController } from "./OrbitCameraController.js";
-import { CarPieceAssetManager } from "../Car/CarPieceAssetManager.js";
 import { CarManager } from "../Car/CarManager.js";
 import { GarageOverlay } from "./GarageOverlay.js";
-import { getAABBCorners } from "../World3D/Utils/BoundsUtils.js";
-import { DebugOutline } from "../World3D/DebugOutline.js";
 import { UIScene } from "../Utils/UIScene.js";
 import { MapScene } from "../Map/MapScene.js";
 import { SceneStack } from "../Utils/SceneStack.js";
 import { CarConfigState } from "../Car/CarConfigState.js";
 import { LoadingScreen } from "../LoadingScreen.js";
 import { GAMESTATE } from "../GameState.js";
-import { globalAssetManager } from "../GlobalAssets.js";
+import { globalAssetManager, MAP_SEED } from "../GlobalAssets.js";
 
 /* Car Piece Data
     Todo: LOD
@@ -30,17 +27,19 @@ import { globalAssetManager } from "../GlobalAssets.js";
 
 export class GarageScene extends UIScene {
 
-    static async create(app, existingLoadingScreen = null) {
+    static async create(app, cityIdx, existingLoadingScreen = null) {
         const loadingScreen = existingLoadingScreen ?? new LoadingScreen(app);
         if (!existingLoadingScreen) SceneStack.pushScene(loadingScreen);
 
-        return new GarageScene(app);
+        return new GarageScene(app, cityIdx);
     }
 
-    constructor(app) {
+    constructor(app, cityIdx) {
         super(app, "GarageScene");
         this.uiScene = new PIXI.Container();
         this.world3dScene = new PIXI.Container();
+
+        this.cityIdx = cityIdx;
 
         this.camera = new Camera(app, null, null);
         const target = {x: 0, y: 0, z: 0};
@@ -84,7 +83,6 @@ export class GarageScene extends UIScene {
 
         this.carManager = new CarManager(this.carLayer, globalAssetManager);
         const config = this.carConfig.exportConfig();
-        const baseAsset = globalAssetManager.getAssetByName(config.base);
         
         const scale = 30;
         this.car = this.carManager.spawnPlayerCar(config, target, scale);
@@ -93,7 +91,8 @@ export class GarageScene extends UIScene {
         this.overlay = new GarageOverlay(this.app, globalAssetManager, this.car, this.carConfig, {
             onExit: async (config) => {
                 GAMESTATE.updateCarConfig(config);
-                const scene = await MapScene.create(this.app);
+                GAMESTATE.completeCityFeature(this.cityIdx);
+                const scene = await MapScene.create(this.app, MAP_SEED);
                 SceneStack.pushScene(scene);
             }
         });

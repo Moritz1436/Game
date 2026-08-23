@@ -18,6 +18,7 @@ import { computeScaleForWidth, ROT_X_TO_NEGZ } from "../Car/CarUtils.js";
 import { EnemyCarManager } from "./EnemyCarManager.js";
 import { NotifScreen } from "../NotifScreen.js";
 import { WindEffect } from "./WindEffect.js";
+import { cityDistance } from "../Map/Roads.js";
 
 /* Note:
     use https://itch.io/game-assets/free/tag-3d/tag-tree for more models
@@ -66,7 +67,7 @@ export class DriveScene extends UIScene {
 
     static assets = null;
 
-    static async create(app, distance, existingLoadingScreen = null) {
+    static async create(app, distance, toCityIdx, existingLoadingScreen = null) {
         const loadingScreen = existingLoadingScreen ?? new LoadingScreen(app);
         if (!existingLoadingScreen) SceneStack.pushScene(loadingScreen);
 
@@ -184,18 +185,19 @@ export class DriveScene extends UIScene {
             labels
         );
 
-        return new DriveScene(app, distance);
+        return new DriveScene(app, distance, toCityIdx);
     }
 
     ///@param app - PixiJs Application
-    ///@param distance - how many meters the user has to drive to the next city
-    constructor(app, distance) {
+    constructor(app, distance, toCityIdx) {
         super(app, "DriveScene");
         this.uiScene = new PIXI.Container();
         this.world3dScene = new PIXI.Container();
 
         const scaledDistance = distance * 20;
         this.distance = scaledDistance;
+
+        this.toCityIdx = toCityIdx;
 
         this.camPos3dStart = {x: 0, y: 100, z: 0};
         const camRot = { x: -0.15, y: 0, z: 0 };
@@ -475,9 +477,8 @@ export class DriveScene extends UIScene {
 
         const distanceCovered = this.camPos3dStart.z - this.camera.pos3d.z;
         if (distanceCovered >= this.distance){
-            console.log("finish");
-            
-            const scene = await MapScene.create(this.app);
+            GAMESTATE.setCurrentCity(this.toCityIdx);          
+            const scene = await MapScene.create(this.app, MAP_SEED);
             SceneStack.pushScene(scene);
             return;
         }
