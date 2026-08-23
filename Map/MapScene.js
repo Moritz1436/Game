@@ -11,6 +11,7 @@ import { NotifScreen } from "../NotifScreen.js";
 import { DriveScene } from "../Road/DriveScene.js";
 import { GAMESTATE } from "../GameState.js";
 import { GarageScene } from "../Garage/GarageScene.js";
+import { QuestScene } from "../Quest/QuestScene.js";
 
 export class MapScene extends UIScene {
 
@@ -24,7 +25,7 @@ export class MapScene extends UIScene {
             [
                 async () => {
                     scene = new MapScene(app, seed);
-                    scene.chunkManager.loadAllPending();
+                    await scene.chunkManager.loadAllPendingAsync();
                 }
             ],
             null,
@@ -219,11 +220,11 @@ export class MapScene extends UIScene {
             },
             shop: {
                 text: "INFORMATION\nThe shop is fully stocked. Want to take a look?",
-                openScene: null, // TODO: ShopScene noch nicht implementiert
+                openScene: async (app) => await QuestScene.create(app, this.macro.world, GAMESTATE.currentCityIndex),
             },
             quest: {
                 text: "INFORMATION\nThe local quest board is right here. Want to check it out?",
-                openScene: null, // TODO: QuestScene noch nicht implementiert
+                openScene: async (app) => await QuestScene.create(app, this.macro.world, GAMESTATE.currentCityIndex),
             },
             rennen: {
                 text: "INFORMATION\nThe race track is ready. Want to start a race?",

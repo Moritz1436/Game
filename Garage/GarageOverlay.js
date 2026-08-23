@@ -2,47 +2,15 @@ import * as PIXI from "pixi.js";
 import { GAMESTATE } from "../GameState";
 import { HorizontalScroller } from "./HorizonalScroller.js";
 import { HSVColorPicker } from "./HSVColorPicker.js";
-import { hexToRgb, rgbToHex, rgbToHsv, hsvToRgb } from "./HSVColorPicker.js";
+import { rgbToHex, rgbToHsv, hsvToRgb } from "./HSVColorPicker.js";
 import { COLOR_CHANGE_COST } from "../GlobalAssets.js";
 import { NotifScreen } from "../NotifScreen.js";
 import { SceneStack } from "../Utils/SceneStack.js";
-
-const COLORS = {
-    panelBg: 0x2b2b2b,
-    panelBorder: 0x111111,
-    gold: 0xf4c542,
-    goldDark: 0xa9791b,
-    boxBg: 0x3a3a3a,
-    boxBgHover: 0x4a4a4a,
-    boxBgSelected: 0x5a5a3a,
-    boxBorder: 0x111111,
-    textLight: 0xffffff,
-    exitRed: 0xb03030,
-    exitRedHover: 0xd04040,
-};
-
-function pixelText(str, size, color = COLORS.textLight) {
-    const t = new PIXI.Text({
-        text: str,
-        style: {
-            fontFamily: "monospace",
-            fontSize: size,
-            fill: color,
-            fontWeight: "bold",
-        },
-    });
-    t.resolution = 2;
-    return t;
-}
+import { COLORS } from "../Colors.js";
+import { pixelText, drawBox } from "../Utils/UI.js";
 
 function formatPropValue(v) {
     return Number.isInteger(v) ? v.toString() : v.toFixed(1);
-}
-
-function drawBox(g, w, h, bg, border, borderWidth) {
-    g.clear();
-    g.rect(0, 0, w, h).fill(bg);
-    g.rect(0, 0, w, h).stroke({ width: borderWidth, color: border });
 }
 
 // ---------------------------------------------------------------------------

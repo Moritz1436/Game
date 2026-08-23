@@ -1,31 +1,7 @@
 import * as PIXI from "pixi.js";
 import { UIScene } from "./Utils/UIScene.js";
-
-const COLORS = {
-    overlayDim: 0x000000,
-    panelBg: 0x2b2b2b,
-    panelBorder: 0x111111,
-    textLight: 0xffffff,
-    textDim: 0xaaaaaa,
-    btnBg: 0x3a3a3a,
-    btnBgHover: 0x4a4a4a,
-    btnBorder: 0x111111,
-};
-
-function pixelText(str, size, color = COLORS.textLight) {
-    const t = new PIXI.Text({
-        text: str,
-        style: { fontFamily: "monospace", fontSize: size, fill: color, fontWeight: "bold" },
-    });
-    t.resolution = 2;
-    return t;
-}
-
-function drawBox(g, w, h, bg, border, borderWidth) {
-    g.clear();
-    g.rect(0, 0, w, h).fill(bg);
-    g.rect(0, 0, w, h).stroke({ width: borderWidth, color: border });
-}
+import { COLORS } from "./Colors.js";
+import { pixelText, drawBox } from "./Utils/UI.js";
 
 function createButton(label, onClick) {
     const c = new PIXI.Container();

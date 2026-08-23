@@ -1,13 +1,7 @@
 import * as PIXI from "pixi.js";
 import { UIScene } from "./Utils/UIScene.js";
+import { COLORS } from "./Colors.js";
 
-const COLORS = {
-    bg: 0x111111,
-    barBg: 0x2b2b2b,
-    barBorder: 0x555555,
-    barFill: 0xf4c542,
-    text: 0xffffff,
-};
 
 // Simple progress-bar loading screen. Pass a list of async load functions,
 // it runs them (sequentially, so the bar advances predictably step by step),

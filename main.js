@@ -5,6 +5,7 @@ import { MapScene } from "./Map/MapScene.js";
 import { GAMESTATE } from "./GameState.js";
 import { LoadingScreen } from "./LoadingScreen.js";
 import { GLOBAL_MANIFEST, loadGlobalAssetEntry, MAP_SEED } from "./GlobalAssets.js";
+import { ToastManager } from "./ToastManager.js";
 
 /////////// GLOBALS //////////////
 const resolution = 9/16;
@@ -23,11 +24,11 @@ window.DEBUG = {
     showCarBounds: false
 }
 
-export function getWidth() {
+function getWidth() {
     return 1920;
 }
 
-export function getHeight() {
+function getHeight() {
     return 1080;
 }
 
@@ -83,7 +84,6 @@ export function getHeight() {
 function setupDebug(app) {
     const debugToggle = document.getElementById("debugToggle");
     const showMeshesToggle = document.getElementById("showMeshesToggle");
-    const speedToggle = document.getElementById("speedToggle");
 
     debugToggle.checked = false;
     debugToggle.addEventListener("change", (e) => {
@@ -143,6 +143,8 @@ async function boot(app) {
     );
 
     GAMESTATE.loadState();
+
+    ToastManager.init(app);
 
     // Start Scene
     const mapScene = await MapScene.create(app, MAP_SEED, loadingScreen);

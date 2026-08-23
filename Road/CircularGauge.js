@@ -1,15 +1,6 @@
 import * as PIXI from "pixi.js";
-import { pixelText } from "./DriveOverlay.js";
-
-const COLORS = {
-    textDim: 0xaaaaaa,
-    textLight: 0xffffff,
-    needleRed: 0xe03030,
-    redlineZone: 0xd04040,
-    faceRing: 0x1a1a1a,
-    tickMinor: 0x888888,
-};
-
+import { pixelText } from "../Utils/UI.js";
+import { COLORS } from "../Colors.js";
 
 // ---------------------------------------------------------------------------
 // Rundes Tacho: 240° Sweep, Haupt-/Nebenstriche, Zahlen, roter Zeiger.

@@ -7,6 +7,8 @@ export class UIScene {
         this.app = app;
         this.label = sceneName;
 
+        this.topMost = false;
+
         //will be rendered with a z-index
         this.world3dScene = null;
 

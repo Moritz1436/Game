@@ -1,6 +1,8 @@
 import { DEFAULT_CAR_CONFIG } from "./GlobalAssets.js";
 import { NotifScreen } from "./NotifScreen.js";
 import { SceneStack } from "./Utils/SceneStack.js";
+import { CITY_FEATURES } from "./Map/Palette.js";
+import { QUEST_TYPES } from "./Quest/Quests.js";
 
 // Central, singleton gamestate. Scenes/UI read from this and call its
 // mutator methods instead of touching plain fields directly.
@@ -16,6 +18,8 @@ export class GameState {
         this.cityFeatureOverrides = {}; // { [cityIndex]: { feature: string|null, respawnAt: number|null } }
 
         this.showTips = false;
+        this.activeQuest = null;
+        this.originalSpeed = 0;
 
         this._listeners = new Set();
     }
@@ -24,6 +28,45 @@ export class GameState {
         this.cityFeatureOverrides[cityIndex] = {
             feature: null,
             respawnAt: Date.now() + cooldownMs,
+        };
+    }
+    
+    _restoreCarSpeedIfNeeded() {
+        if (this.activeQuest?.type === QUEST_TYPES.DELIVER_HEAVY && this.originalSpeed) {
+            const config = this.getCurrentCarConfig();
+            config.properties.speed.value += this.originalSpeed;
+            this.originalSpeed = 0;
+        }
+    }
+
+    abandonQuest() {
+        this._restoreCarSpeedIfNeeded();
+        this.activeQuest = null;
+    }
+
+    completeActiveQuest() {
+        this._restoreCarSpeedIfNeeded();
+        this.activeQuest = null;
+    }
+
+    failActiveQuest() {
+        this._restoreCarSpeedIfNeeded();
+        this.activeQuest = null;
+    }
+
+    acceptQuest(quest, currentCityIndex) {
+        if (quest.type === QUEST_TYPES.DELIVER_HEAVY) {
+            const config = this.getCurrentCarConfig();
+            this.originalSpeed = config.properties.speed.value * 0.2;
+            config.properties.speed.value -= this.originalSpeed;
+        }
+
+        this.activeQuest = {
+            ...quest,
+            acceptedFromCityIndex: currentCityIndex,
+            progress: 0,
+            startedAt: Date.now(),
+            expiresAt: Date.now() + quest.expiryMs,
         };
     }
 

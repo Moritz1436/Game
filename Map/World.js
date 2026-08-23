@@ -3,6 +3,36 @@ import { FULL_W, FULL_H, NOISE_SCALE, mulberry32, makeHash, fbm, smoothstepRange
     CITIES_PER_CHUNK_MAX } from "./Utils.js";
 import { CITY_PALETTES, CITY_FEATURES } from "./Palette.js";
 
+const CITY_NAME_POOL = [
+    "Ashford", "Brightwater", "Cedar Hollow", "Dustpine", "Emberfall",
+    "Fairhaven", "Graystone", "Hollowmere", "Ironbridge", "Juniper Bend",
+    "Kingsford", "Larkspur", "Millbrook", "Northgate", "Oakhaven",
+    "Pinewick", "Quarryton", "Redcliff", "Silverbrook", "Thornfield",
+    "Underhill", "Vale Crossing", "Westmarch", "Yellowridge", "Zephyr Point",
+    "Amberfield", "Blackrock", "Copperton", "Driftwood", "Eastvale",
+    "Foxhollow", "Greenmere", "Highridge", "Ivywood", "Long Meadow",
+    "Marrowgate", "Nightfall Crossing", "Old Ferry", "Palmerston", "Quiet Bay",
+];
+
+function shuffledCityNames(rand, count) {
+    // Fisher-Yates mit dem gleichen seeded rand() wie der Rest von World -
+    // deterministisch pro Seed, nicht Math.random()
+    const pool = [...CITY_NAME_POOL];
+    for (let i = pool.length - 1; i > 0; i--) {
+        const j = Math.floor(rand() * (i + 1));
+        [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    if (count > pool.length) {
+        // Fallback fuer den unwahrscheinlichen Fall mehr Staedte als Namen
+        // im Pool (aktuell 40 Namen, cityCount liegt ueblicherweise deutlich
+        // darunter) - haengt einen Index an, um Duplikate zu vermeiden
+        const extra = [];
+        for (let i = pool.length; i < count; i++) extra.push(`${pool[i % pool.length]} ${Math.floor(i / pool.length) + 2}`);
+        return [...pool, ...extra];
+    }
+    return pool.slice(0, count);
+}
+
 export class World {
     constructor(seed) {
         this.seed = seed;
@@ -50,6 +80,11 @@ export class World {
                 palette: CITY_PALETTES[Math.floor(this.rand() * CITY_PALETTES.length)],
                 feature: CITY_FEATURES[Math.floor(this.rand() * CITY_FEATURES.length)],
             });
+        }
+
+        const names = shuffledCityNames(this.rand, this.cities.length);
+        for (let i = 0; i < this.cities.length; i++) {
+            this.cities[i].name = names[i];
         }
     }
 

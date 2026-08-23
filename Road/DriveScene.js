@@ -18,7 +18,7 @@ import { computeScaleForWidth, ROT_X_TO_NEGZ } from "../Car/CarUtils.js";
 import { EnemyCarManager } from "./EnemyCarManager.js";
 import { NotifScreen } from "../NotifScreen.js";
 import { WindEffect } from "./WindEffect.js";
-import { cityDistance } from "../Map/Roads.js";
+import { ToastManager } from "../ToastManager.js";
 
 /* Note:
     use https://itch.io/game-assets/free/tag-3d/tag-tree for more models
@@ -61,6 +61,8 @@ import { cityDistance } from "../Map/Roads.js";
     arrows to move cam arround car, up/down to move car in 4 spots, left/right to rot cam
     showcarbounds
 */
+
+const DISTANCE_SCALE = 20;
 
 //Scene when driving from 1 city to another
 export class DriveScene extends UIScene {
@@ -194,7 +196,7 @@ export class DriveScene extends UIScene {
         this.uiScene = new PIXI.Container();
         this.world3dScene = new PIXI.Container();
 
-        const scaledDistance = distance * 20;
+        const scaledDistance = distance * DISTANCE_SCALE;
         this.distance = scaledDistance;
 
         this.toCityIdx = toCityIdx;
@@ -339,6 +341,8 @@ export class DriveScene extends UIScene {
         };
         this.ground = new GroundManager(app, this.camera, this.groundLayer, this.debugLayerUI, groundPos, {x: 5000, y: groundLength });
 
+        this.lastDistance = 0;
+
         app.ticker.add(this.update, this);
     }
 
@@ -476,8 +480,12 @@ export class DriveScene extends UIScene {
         if (oldX !== newCamPos.x) steeringInput = 0;
 
         const distanceCovered = this.camPos3dStart.z - this.camera.pos3d.z;
+        const deltaMeters = distanceCovered - this.lastDistance;
+        this.lastDistance = distanceCovered;
+        ToastManager.update('distance', { deltaMeters: deltaMeters / DISTANCE_SCALE, toCityIdx: this.toCityIdx });
         if (distanceCovered >= this.distance){
-            GAMESTATE.setCurrentCity(this.toCityIdx);          
+            GAMESTATE.setCurrentCity(this.toCityIdx);
+            ToastManager.update('city_reached', { cityIndex: this.toCityIdx });          
             const scene = await MapScene.create(this.app, MAP_SEED);
             SceneStack.pushScene(scene);
             return;
@@ -538,7 +546,7 @@ export class DriveScene extends UIScene {
 
         //Overlay
         this.driveOverlay.update(dt);
-        this.driveOverlay.setDistance(this.distance - distanceCovered);
+        this.driveOverlay.setDistance((this.distance - distanceCovered) / DISTANCE_SCALE);
         const speed = Math.abs((oldCamPosZ - this.camera.pos3d.z) / dt) / 10;
         const rpm = 800 + (speed / 300) * 6500;
         this.driveOverlay.setSpeed(speed);

@@ -3,11 +3,12 @@ import { WorldChunk } from "./WorldChunk.js";
 
 
 export class ChunkManager {
-    constructor(terrainContainer, vegetationContainer, macro, loadRadius = 3, chunksPerFrame = 1) {
+    constructor(terrainContainer, vegetationContainer, macro, loadRadius = 3, chunksPerFrame = 1, frameBudgetMs = 8) {
         this.terrainContainer = terrainContainer;
         this.vegetationContainer = vegetationContainer;
         this.macro = macro;
         this.loadRadius = loadRadius;
+        this.frameBudgetMs = frameBudgetMs;
         this.chunksPerFrame = chunksPerFrame;
         this.activeChunks = new Map();
         this.pendingKeys = []; // Warteschlange, naechste zuerst
@@ -15,15 +16,44 @@ export class ChunkManager {
         this._lastCenterCy = null;
     }
 
+    _loadOneChunk(key) {
+        const [cx, cy] = key.split(',').map(Number);
+        const chunk = new WorldChunk(cx, cy, this.macro);
+        this.terrainContainer.addChild(chunk.sprite);
+        this.vegetationContainer.addChild(chunk.vegSprite);
+        this.activeChunks.set(key, chunk);
+    }
+
+    loadAllPendingAsync(onProgress = null) {
+        const total = this.pendingKeys.length;
+        return new Promise((resolve) => {
+            const step = () => {
+                const frameStart = performance.now();
+
+                while (this.pendingKeys.length > 0 && (performance.now() - frameStart) < this.frameBudgetMs) {
+                    const key = this.pendingKeys.shift();
+                    if (!this.activeChunks.has(key)) {
+                        this._loadOneChunk(key);
+                    }
+                }
+
+                onProgress?.(total - this.pendingKeys.length, total);
+
+                if (this.pendingKeys.length > 0) {
+                    requestAnimationFrame(step);
+                } else {
+                    resolve();
+                }
+            };
+            requestAnimationFrame(step);
+        });
+    }
+
     loadAllPending() {
         while (this.pendingKeys.length > 0) {
             const key = this.pendingKeys.shift();
             if (this.activeChunks.has(key)) continue;
-            const [cx, cy] = key.split(',').map(Number);
-            const chunk = new WorldChunk(cx, cy, this.macro);
-            this.terrainContainer.addChild(chunk.sprite);
-            this.vegetationContainer.addChild(chunk.vegSprite);
-            this.activeChunks.set(key, chunk);
+            this._loadOneChunk(key);
         }
     }
 

@@ -1,11 +1,36 @@
 import * as PIXI from "pixi.js";
-import { generateAndDrawCityBuildings } from "./draw.js";
-import { CityMarker } from "./CityMarker.js";
-
+import { generateAndDrawCityBuildings, drawCityBadge } from "./draw.js";
+import { pixelText, drawBox } from "../Utils/UI.js";
+import { COLORS } from "../Colors.js";
 
 export class CityGroup extends PIXI.Container {
     static _footprintPadding = 1.6; // wie viel Rand ums Gebaeude-Areal fuer Schatten/Ueberstand
     static _glowTex = null;
+    static _textureCache = new Map();
+
+    static getBadgeTexture(feature, rand) {
+        if (CityGroup._textureCache.has(feature)) {
+            return CityGroup._textureCache.get(feature);
+        }
+
+        // Canvas-Layout: lokaler "Bodenpunkt" (x0,y0) entspricht dem (x,y),
+        // das drawCityBadge normalerweise in Weltkoordinaten bekommt.
+        // Badge schwebt bei y0-42 mit Radius 24 -> reicht bis y0-66-lineWidth
+        // nach oben; Schatten bei y0-2 mit ry=5.5 -> reicht bis y0+3.5+etwas
+        // Puffer nach unten. Grosszuegige Raender fuer den Outline-Stroke.
+        const x0 = 34, y0 = 74;
+        const canvas = document.createElement('canvas');
+        canvas.width = 68;
+        canvas.height = 90;
+        const ctx = canvas.getContext('2d');
+
+        drawCityBadge(ctx, x0, y0, feature, rand);
+
+        const texture = PIXI.Texture.from(canvas);
+        texture._groundAnchor = { x: x0 / canvas.width, y: y0 / canvas.height };
+        CityGroup._textureCache.set(feature, texture);
+        return texture;
+    }
 
     constructor(city, world, cityNetwork, isCurrent = false) {
         super();
@@ -50,11 +75,36 @@ export class CityGroup extends PIXI.Container {
 
         this.badge = null;
         if (city.feature) {
-            this.badge = new PIXI.Sprite(CityMarker.getBadgeTexture(city.feature, city.rand));
+            this.badge = new PIXI.Sprite(CityGroup.getBadgeTexture(city.feature, city.rand));
             const anchor = this.badge.texture._groundAnchor;
             this.badge.anchor.set(anchor.x, anchor.y);
             this.badge.y = -worldRadiusPx * 0.15;
             this.addChild(this.badge);
+        }
+
+        this.nameText = null;
+        this.nameBg = null;
+        this.nameContainer = null;
+        if (city.name) {
+            this.nameText = pixelText(city.name, 28, COLORS.textLight);
+            this.nameText.anchor.set(0.5, 0.5);
+
+            const paddingX = 14, paddingY = 8;
+            const bgW = this.nameText.width + paddingX * 2;
+            const bgH = this.nameText.height + paddingY * 2;
+
+            this.nameBg = new PIXI.Graphics();
+            drawBox(this.nameBg, bgW, bgH, 0x241d16, 0x2a221a, 2, 6); // dunkler Grund, dezente Border
+            this.nameBg.alpha = 0.65;
+            this.nameBg.pivot.set(bgW / 2, bgH / 2); // damit Positionierung ueber x/y wie beim Text funktioniert
+
+            const nameY = this.badge ? this.badge.y - 105 : -worldRadiusPx * 0.35;
+            this.nameContainer = new PIXI.Container();
+            this.nameContainer.y = nameY;
+            this.nameBg.y = 0;
+            this.nameText.y = 0;
+            this.nameContainer.addChild(this.nameBg, this.nameText);
+            this.addChild(this.nameContainer);
         }
 
         this.x = city.cx;
@@ -107,7 +157,9 @@ export class CityGroup extends PIXI.Container {
             if (this.destroyed) return;
             const t = Math.min(1, (now - t0) / durationMs);
             const eased = 1 - Math.pow(1 - t, 3);
+            const s = start + (target - start) * eased;
             this.scale.set(start + (target - start) * eased);
+            if (this.nameContainer) this.nameContainer.scale.set(1 / s);
             if (t < 1) requestAnimationFrame(step);
         };
         requestAnimationFrame(step);

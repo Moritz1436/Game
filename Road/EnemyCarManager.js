@@ -4,6 +4,7 @@ import { RoadManager } from "./RoadManager.js";
 import { NotifScreen } from "../NotifScreen.js";
 import { SceneStack } from "../Utils/SceneStack.js";
 import { GAMESTATE } from "../GameState.js";
+import { ToastManager } from "../ToastManager.js";
 
 const ENEMY_BASE_COLORS = [
     0x1A1A1E, // jet black
@@ -243,6 +244,7 @@ export class EnemyCarManager {
         if (collisions.length > 0) {
             if (!this._inCollision) {
                 this.driveScene.stopCar();
+                ToastManager.update('crash', {});
                 const notif = new NotifScreen(
                     this.app,
                     "ACCIDENT!\nYou've been involved in a collision. Your car needs a quick repair before you can continue.\n\nRepair Cost: $500\n\nYour Balance: $" + `${GAMESTATE.money}`,
