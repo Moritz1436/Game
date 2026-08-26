@@ -1,5 +1,5 @@
 import { GlProgram, Shader, UniformGroup } from "pixi.js";
-import { cameraUniforms } from "../World3D/CameraUniforms.js";
+import { cameraUniforms } from "../World3D/Uniforms.js";
 import { IDENTITY_MAT3 } from "../World3D/Utils/Mat3Utils.js";
 
 //Debug Shader for rendering outlines of 3d objects, so they get into the gpu z index buffer

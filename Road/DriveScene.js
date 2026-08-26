@@ -69,7 +69,7 @@ export class DriveScene extends UIScene {
 
     static assets = null;
 
-    static async create(app, distance, toCityIdx, existingLoadingScreen = null) {
+    static async create(app, distance, toCityIdx, cityName, existingLoadingScreen = null) {
         const loadingScreen = existingLoadingScreen ?? new LoadingScreen(app);
         if (!existingLoadingScreen) SceneStack.pushScene(loadingScreen);
 
@@ -77,8 +77,6 @@ export class DriveScene extends UIScene {
         const imageAssets = [
             "assets/lane_side.png",
             "assets/lane_middle.png",
-            "assets/mountains.png",
-            "assets/ground.png"
         ];
 
         const modelAssets = {
@@ -142,6 +140,31 @@ export class DriveScene extends UIScene {
                 low: [ 
                     "forest" 
                 ]
+            },
+            guard_rail: {
+                low: [
+                    "guard_rail"
+                ]
+            },
+            houses: {
+                low: [
+                    "small1",
+                    "small2",
+                    "small3",
+                    "small4",
+                    "small5"
+                ],
+                medium: [
+                    "mid1",
+                    "mid2",
+                    "mid3",
+                    "mid4",
+                    "mid5"
+                ],
+                high: [
+                    "big1",
+                    "big2"
+                ]
             }
         };
 
@@ -150,7 +173,9 @@ export class DriveScene extends UIScene {
             rocks: { high: [], medium: [] },
             grass: { high: [] },
             bushes: { high: [], medium: [] },
-            forest: { low: [] }
+            forest: { low: [] },
+            guard_rail: { low: [] },
+            houses: { high: [], medium: [], low: [] },
         };
 
         const tasks = [];
@@ -187,11 +212,11 @@ export class DriveScene extends UIScene {
             labels
         );
 
-        return new DriveScene(app, distance, toCityIdx);
+        return new DriveScene(app, distance, toCityIdx, cityName);
     }
 
     ///@param app - PixiJs Application
-    constructor(app, distance, toCityIdx) {
+    constructor(app, distance, toCityIdx, cityName) {
         super(app, "DriveScene");
         this.uiScene = new PIXI.Container();
         this.world3dScene = new PIXI.Container();
@@ -200,6 +225,7 @@ export class DriveScene extends UIScene {
         this.distance = scaledDistance;
 
         this.toCityIdx = toCityIdx;
+        this.toCityName = cityName;
 
         this.camPos3dStart = {x: 0, y: 100, z: 0};
         const camRot = { x: -0.15, y: 0, z: 0 };
@@ -243,7 +269,6 @@ export class DriveScene extends UIScene {
             ENEMY_CAR_CONFIG,
             { 
                 carWidth: this.carWidth,
-                maxZ: this.camPos3dStart.z - this.distance,
                 laneCount: this.laneCount
             }
         );
@@ -255,7 +280,6 @@ export class DriveScene extends UIScene {
         this.targetSpeed = this.baseSpeed;
         this.currentSpeed = this.baseSpeed;
         this.speedFollowSpeed = 6.0;
-        this.throttle = 0.0;
         this.carStopped = false;
 
         //Debug
@@ -270,7 +294,6 @@ export class DriveScene extends UIScene {
             this.camera,
             this.roadLayer,
             this.debugLayerUI,
-            scaledDistance,
             { laneCount: this.laneCount }
         );
 
@@ -291,7 +314,7 @@ export class DriveScene extends UIScene {
             this.laneCount
         );
 
-        this.driveOverlay = new DriveOverlay(app, this.playerCar.properties, {
+        this.driveOverlay = new DriveOverlay(app, this.playerCar.properties, cityName, {
             onExit: () => {
                 this.stopCar();
                 const notif = new NotifScreen(
@@ -334,12 +357,14 @@ export class DriveScene extends UIScene {
 
         //base background
         const groundLength = scaledDistance + 3200;
+        const roadWidth = RoadManager.computeTotalWidth(this.laneCount);
+        const forestMargin = this.objects.maxX;
         const groundPos = {
             x: 0,
             y: -1,
             z: 50 - scaledDistance * 0.5
         };
-        this.ground = new GroundManager(app, this.camera, this.groundLayer, this.debugLayerUI, groundPos, {x: 5000, y: groundLength });
+        this.ground = new GroundManager(app, this.camera, this.groundLayer, this.debugLayerUI, groundPos, { x: forestMargin, y: groundLength }, roadWidth);
 
         this.lastDistance = 0;
 
@@ -375,30 +400,23 @@ export class DriveScene extends UIScene {
         //frame indipendant
         const dt = ticker.deltaMS / 1000;
 
-        // -1 = S, 0 = nichts, +1 = W
-        let targetThrottle = 0;
         
         if (Input.isKeyDown("KeyW")) {
-            targetThrottle = 1;
+            this.targetSpeed = this.baseSpeed;
         } else if (Input.isKeyDown("KeyS")) {
-            targetThrottle = -1;
+            this.targetSpeed = 160;
         }
+        else {
+            this.targetSpeed = this.baseSpeed * 0.6;
+        }
+        if (this._boosting) this.targetSpeed *= this.boost_value;
         
-        const throttleFollow = 1 - Math.exp(-this.speedFollowSpeed * dt);
-        this.throttle += (targetThrottle - this.throttle) * throttleFollow;
         const speedFollow = 1 - Math.exp(-this.speedFollowSpeed * dt);
-
-
         this.currentSpeed += (this.targetSpeed - this.currentSpeed) * speedFollow;
-        const speedZ = this.currentSpeed;
-
-        const baseSpeedZ = speedZ * 0.6;
-        const additionalSpeedZ = speedZ * 0.4 * this.throttle;
-        const speedX = speedZ * 0.25;
 
         const newCamPos = { x: this.camera.pos3d.x, y: this.camera.pos3d.y, z: this.camera.pos3d.z };
         const oldCamPosZ = this.camera.pos3d.z;
-        newCamPos.z -= (baseSpeedZ + additionalSpeedZ) * dt;
+        newCamPos.z -= this.currentSpeed * dt;
 
         let steeringInput = 0;
 
@@ -456,6 +474,8 @@ export class DriveScene extends UIScene {
         }
         //DEBUG END
 
+        const speedX = 0.25 * this.baseSpeed;
+
         // Move Camera based on Inputs
         if (Input.isKeyDown("KeyD")){
             steeringInput -= 1;
@@ -468,8 +488,8 @@ export class DriveScene extends UIScene {
         const oldX = newCamPos.x;
 
         const roadWidthHalf = RoadManager.computeTotalWidth(this.laneCount) * 0.5;
-        const minX = -roadWidthHalf + this.playerCar.getLocalBounds().max.x * 0.5;
-        const maxX = roadWidthHalf - this.playerCar.getLocalBounds().max.x * 0.5;
+        const minX = -roadWidthHalf + this.playerCar.getLocalBounds().max.x * 0.5 - this.objects.guardRailOffsetX;
+        const maxX = roadWidthHalf - this.playerCar.getLocalBounds().max.x * 0.5 + this.objects.guardRailOffsetX;
 
         if (!window.DEBUG.enabled) {
             newCamPos.x = Math.max(minX, Math.min(newCamPos.x, maxX));
@@ -484,7 +504,7 @@ export class DriveScene extends UIScene {
         this.lastDistance = distanceCovered;
         ToastManager.update('distance', { deltaMeters: deltaMeters / DISTANCE_SCALE, toCityIdx: this.toCityIdx });
         if (distanceCovered >= this.distance){
-            GAMESTATE.setCurrentCity(this.toCityIdx);
+            GAMESTATE.setCurrentCity(this.toCityIdx, this.toCityName);
             ToastManager.update('city_reached', { cityIndex: this.toCityIdx });          
             const scene = await MapScene.create(this.app, MAP_SEED);
             SceneStack.pushScene(scene);
@@ -524,7 +544,7 @@ export class DriveScene extends UIScene {
         this.objects.update();
         
         //update ground
-        this.ground.update(this.app, this.camera);
+        this.ground.update(this.nightFactor);
 
         //Boost
         const boostingNow = Input.isKeyDown("Space");
@@ -532,9 +552,13 @@ export class DriveScene extends UIScene {
         if (boostingNow && !this._wasBoostingLastFrame) {
             const boosting = this.driveOverlay.onBoostStart(() => {
                 this.targetSpeed = this.baseSpeed;
+                this._boosting = false;
             });
 
-            if (boosting) this.targetSpeed = this.baseSpeed * this.boost_value;
+            if (boosting) {
+                this.targetSpeed = this.baseSpeed * this.boost_value;
+                this._boosting = true;
+            }
         } else if (!boostingNow && this._wasBoostingLastFrame) {
             this.driveOverlay.onBoostEnd();
         }
@@ -552,6 +576,7 @@ export class DriveScene extends UIScene {
         this.driveOverlay.setSpeed(speed);
         this.driveOverlay.setRPM(rpm);
 
-        this.camera.update();
+        const nightFactor = this.mountains.nightFactor;
+        this.camera.update(nightFactor);
     }
 }

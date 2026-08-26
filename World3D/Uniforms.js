@@ -10,6 +10,14 @@ export const cameraUniforms = new UniformGroup({
     uScreenSize: { value: new Float32Array(2), type: 'vec2<f32>' },
 });
 
+export const lightingUniforms = new UniformGroup({
+    uLightDir: { value: new Float32Array([0.4, 1.0, 0.3]), type: 'vec3<f32>' },
+    uAmbient: { value: 0.3, type: 'f32' },
+    uDiffuseStrength: { value: 0.7, type: 'f32' },
+    uSpecularStrength: { value: 0.6, type: 'f32' },
+    uNightFactor: { value: 0.0, type: 'f32' },
+});
+
 export function updateCameraUniforms(cam, width, height) {
     const u = cameraUniforms.uniforms;
     u.uCamPos[0] = cam.pos3d.x;
@@ -24,4 +32,6 @@ export function updateCameraUniforms(cam, width, height) {
     u.uCamFar = cam.far;
     u.uScreenSize[0] = width;
     u.uScreenSize[1] = height;
+
+    u.uNightFactor = 1.0;
 }

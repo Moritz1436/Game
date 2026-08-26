@@ -10,11 +10,13 @@ export class DriveOverlay extends PIXI.Container {
 
     ///@param app - PIXI Application
     ///@param callbacks - { onExit }
-    constructor(app, car_properties, callbacks = {}) {
+    constructor(app, car_properties, cityName, callbacks = {}) {
         super();
         this.app = app;
         this.callbacks = callbacks;
         this.eventMode = "static";
+
+        this.cityName = cityName;
 
         // ---- boost state ----
         this.boostAmount = 1;          // 0..1
@@ -108,6 +110,21 @@ export class DriveOverlay extends PIXI.Container {
         this.boostLabel = pixelText("BOOST", 12, COLORS.textLight);
         this.boostLabel.anchor.set(0.5);
         this.boostPanel.addChild(this.boostLabel);
+
+        // ---- destination panel (top-right, links vom Exit-Button) ----
+        this.destinationPanel = new PIXI.Container();
+        this.addChild(this.destinationPanel);
+
+        this.destinationPanelBg = new PIXI.Graphics();
+        this.destinationPanel.addChild(this.destinationPanelBg);
+
+        this.destinationLabel = pixelText("DESTINATION", 10, COLORS.textDim);
+        this.destinationLabel.anchor.set(0.5, 0);
+        this.destinationPanel.addChild(this.destinationLabel);
+
+        this.destinationText = pixelText(this.cityName ?? "", 15, COLORS.textLight);
+        this.destinationText.anchor.set(0.5, 0);
+        this.destinationPanel.addChild(this.destinationText);
 
         // ---- exit button (1:1 aus eurem bestehenden Snippet übernommen) ----
         this.exitButton = new PIXI.Container();
@@ -276,8 +293,20 @@ export class DriveOverlay extends PIXI.Container {
 
         this._redrawBoostFill();
 
+        // ---- destination panel (top-right, links vom Exit-Button) ----
+        const destPanelW = w * 0.18;
+        const destPanelH = h * 0.06;
+        this._exitSize = h * 0.06; // vorziehen, da fuer die Positionierung hier schon gebraucht
+        drawBox(this.destinationPanelBg, destPanelW, destPanelH, COLORS.panelBg, COLORS.panelBorder, Math.max(2, h * 0.004));
+        this.destinationPanel.position.set(w - margin - this._exitSize - margin * 0.5 - destPanelW, margin);
+
+        this.destinationLabel.style.fontSize = destPanelH * 0.22;
+        this.destinationLabel.position.set(destPanelW / 2, destPanelH * 0.10);
+
+        this.destinationText.style.fontSize = destPanelH * 0.32;
+        this.destinationText.position.set(destPanelW / 2, destPanelH * 0.42);
+
         // ---- exit button (top-right) ----
-        this._exitSize = h * 0.06;
         this._drawExitButton(false);
         this.exitButton.position.set(w - margin - this._exitSize, margin);
 

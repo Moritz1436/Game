@@ -1,5 +1,5 @@
 import { GlProgram, Shader, UniformGroup } from "pixi.js";
-import { cameraUniforms } from "../World3D/CameraUniforms.js";
+import { cameraUniforms, lightingUniforms } from "../World3D/Uniforms.js";
 
 //Advanced Shader for rendering with lighting and material properties (metallic/roughness)
 
@@ -80,6 +80,7 @@ uniform vec3 uLightDir;   // normalized, points TOWARD the light
 uniform float uAmbient;
 uniform float uDiffuseStrength;
 uniform float uSpecularStrength;
+uniform float uNightFactor;
 
 void main() {
     if (vValid < 0.999) {
@@ -110,6 +111,10 @@ void main() {
                 + diffuseColor * NdotL * uDiffuseStrength
                 + specularColor * spec;
 
+    vec3 nightTint = vec3(0.55, 0.62, 0.85);
+    float nightDarken = mix(1.0, 0.35, uNightFactor);
+    color = mix(color, color * nightTint, uNightFactor * 0.6) * nightDarken;
+
     color = pow(color, vec3(1.0 / 2.2)); // gamma correction
 
     gl_FragColor = vec4(color, tex.a * uBaseColor.a);
@@ -137,12 +142,7 @@ export function createGpuProjectLitShader(texture, objPos, objScale, materialInf
                 uMetallic: { value: metallic, type: 'f32' },
                 uRoughness: { value: roughness, type: 'f32' },
             }),
-            uLighting: new UniformGroup({
-                uLightDir: { value: new Float32Array([0.4, 1.0, 0.3]), type: 'vec3<f32>' },
-                uAmbient: { value: 0.3, type: 'f32' },
-                uDiffuseStrength: { value: 0.7, type: 'f32' },
-                uSpecularStrength: { value: 0.6, type: 'f32' },
-            }),
+            uLighting: lightingUniforms,
         }
     });
 }

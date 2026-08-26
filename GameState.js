@@ -1,4 +1,4 @@
-import { DEFAULT_CAR_CONFIG } from "./GlobalAssets.js";
+import { FALLBACK_GAMESTATE_DATA } from "./GlobalAssets.js";
 import { NotifScreen } from "./NotifScreen.js";
 import { SceneStack } from "./Utils/SceneStack.js";
 import { CITY_FEATURES } from "./Map/Palette.js";
@@ -13,8 +13,10 @@ export class GameState {
         //configState.exportConfig not the car or config instances itself
         this.ownedCars = [];
         this.activeCarIndex = 0;
+        this.unlockedParts = []; // by Asset.pieceName
 
         this.currentCityIndex = null; //idx in city array
+        this.currentCityName = "";
         this.cityFeatureOverrides = {}; // { [cityIndex]: { feature: string|null, respawnAt: number|null } }
 
         this.showTips = false;
@@ -22,6 +24,16 @@ export class GameState {
         this.originalSpeed = 0;
 
         this._listeners = new Set();
+    }
+
+    isPartUnlocked(pieceName) {
+        return this.unlockedParts?.includes(pieceName) ?? false;
+    }
+
+    unlockPart(pieceName) {
+        if (!this.unlockedParts.includes(pieceName)) {
+            this.unlockedParts.push(pieceName);
+        }
     }
 
     completeCityFeature(cityIndex, cooldownMs = 2 * 60 * 1000) {
@@ -91,12 +103,16 @@ export class GameState {
         }
     }
 
-    setCurrentCity(cityIdx){
+    setCurrentCity(cityIdx, cityName){
         this.currentCityIndex = cityIdx;
+        this.currentCityName = cityName;
+        this._notify("currentCityIndex");
     }
 
     clearCurrentCity() {
         this.currentCityIndex = null;
+        this.currentCityName = "";
+        this._notify("currentCityIndex");
     }
 
     setShowTips(v) {
@@ -166,6 +182,7 @@ export class GameState {
             activeCarIndex: this.activeCarIndex,
             showTips: this.showTips,
             city: this.currentCityIndex,
+            unlockedParts: this.unlockedParts,
         };
     }
 
@@ -175,20 +192,17 @@ export class GameState {
         this.activeCarIndex = data.activeCarIndex ?? 0;
         this.showTips = data.showTips;
         this.currentCityIndex = data.city;
+        this.unlockedParts = data.unlockedParts;
         this._notify("all");
     }
 
     //loads players gamestate from server (to be implemented) otherwise has a fallback, also used for new players
     loadState() {
         //get it from server
+        let data = null;
 
-        //fallback
-        const data = {
-            money: 5000,
-            ownedCars: [ DEFAULT_CAR_CONFIG ],
-            activeCarIndex: 0,
-            showTips: true,
-            city: 0,
+        if (!data){
+            data = FALLBACK_GAMESTATE_DATA;
         }
 
         this.importSave(data);

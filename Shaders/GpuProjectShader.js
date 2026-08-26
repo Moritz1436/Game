@@ -1,5 +1,5 @@
 import { GlProgram, Shader, UniformGroup } from "pixi.js";
-import { cameraUniforms } from "../World3D/CameraUniforms.js";
+import { cameraUniforms } from "../World3D/Uniforms.js";
 
 //Basic Shader for simple rendering
 

@@ -10,21 +10,25 @@ export const globalAssetManager = new CarPieceAssetManager();
 //any models that are needed in more than 1 scene go here
 export const GLOBAL_MANIFEST = [
     { type: "base",    name: "base_sedan",      path: "assets/models/car/base_sedan.json" },
-    { type: "base",    name: "base_audi",      path: "assets/models/car/base_audi.json" },
-    { type: "base",    name: "base_bmw",      path: "assets/models/car/base_bmw.json" },
-    { type: "base",    name: "base_ford",      path: "assets/models/car/base_ford.json" },
-    { type: "base",    name: "base_lambo",      path: "assets/models/car/base_lambo.json" },
+    { type: "base",    name: "base_audi",       path: "assets/models/car/base_audi.json" },
+    { type: "base",    name: "base_bmw",        path: "assets/models/car/base_bmw.json" },
     { type: "base",    name: "base_mazda",      path: "assets/models/car/base_mazda.json" },
-    { type: "base",    name: "base_mustang",      path: "assets/models/car/base_mustang.json" },
-    { type: "tire",    name: "tire_wide",      path: "assets/models/car/tire_wide.json" },
-    { type: "tire",    name: "tire_narrow",      path: "assets/models/car/tire_narrow.json" },
-    { type: "tire",    name: "tire_sport",      path: "assets/models/car/tire_sport.json" },
+    { type: "base",    name: "base_mustang",    path: "assets/models/car/base_mustang.json" },
+    { type: "tire",    name: "tire_wide",       path: "assets/models/car/tire_wide.json" },
+    { type: "tire",    name: "tire_sport",      path: "assets/models/car/tire_sport.json"},
     { type: "tire",    name: "tire_1",          path: "assets/models/car/tire_1.json" },
     { type: "tire",    name: "tire_2",          path: "assets/models/car/tire_2.json" },
-    { type: "tire",    name: "tire_3",          path: "assets/models/car/tire_3.json" },
     { type: "spoiler", name: "spoiler_big",     path: "assets/models/car/spoiler_big.json" },
     { type: "spoiler", name: "spoiler_bmw",     path: "assets/models/car/spoiler_bmw.json" },
-    { type: "spoiler", name: "spoiler_lambo",     path: "assets/models/car/spoiler_lambo.json" }
+];
+
+//car parts from shop rewards that will not be shown in the garage
+export const HIDDEN_MANIFEST = [
+    { type: "base",    name: "base_ford",       path: "assets/models/car/base_ford.json",        chance: 30},
+    { type: "base",    name: "base_lambo",      path: "assets/models/car/base_lambo.json",       chance: 5 },
+    { type: "tire",    name: "tire_3",          path: "assets/models/car/tire_3.json",           chance: 20},
+    { type: "tire",    name: "tire_narrow",     path: "assets/models/car/tire_narrow.json",      chance: 25 },
+    { type: "spoiler", name: "spoiler_lambo",   path: "assets/models/car/spoiler_lambo.json",    chance: 20}
 ];
 
 export async function loadGlobalAssetEntry(entry) {
@@ -53,11 +57,6 @@ export const DEFAULT_CAR_CONFIG = {
         //s it takes to recharge boost
         boost_cooldown: { value: 8, increase: -0.5, level: 0, maxLevel: 10, cost: 300 },
     },
-    unlockedParts: [
-        "base_bmw",
-        "tire_wide",
-        "spoiler_bmw",
-    ]
 };
 
 export const ENEMY_CAR_CONFIG = {
@@ -80,3 +79,17 @@ export const COLOR_CHANGE_COST = 500;
 export const PART_DEFAULT_COST = 1000;
 
 export const MAP_SEED = 283319;
+
+
+export const FALLBACK_GAMESTATE_DATA = {
+    money: 5000,
+    ownedCars: [ DEFAULT_CAR_CONFIG ],
+    activeCarIndex: 0,
+    showTips: true,
+    city: 0,
+    unlockedParts: [
+        "base_bmw",
+        "tire_wide",
+        "spoiler_bmw",
+    ],
+}

@@ -2,6 +2,7 @@
 // from the rendered Car/CarPieceInstance tree. This is the "source of truth"
 // for save/load, UI selection state, etc. The rendered Car is just a
 // projection of this state (via car.importConfig(state.exportConfig())).
+// Car Specific!
 export class CarConfigState {
 
     ///@param initialConfig - { base, parts: {socketName: pieceName}, colors: {...} }
@@ -11,19 +12,7 @@ export class CarConfigState {
             parts: { ...(initialConfig.parts ?? {}) },
             colors: structuredClone(initialConfig.colors ?? {}),
             properties: initialConfig.properties ?? {},
-            unlockedParts: initialConfig.unlockedParts ?? []
         };
-    }
-
-    isPartUnlocked(pieceName) {
-        return this.data.unlockedParts?.includes(pieceName) ?? false;
-    }
-
-    unlockPart(pieceName) {
-        if (!this.data.unlockedParts) this.data.unlockedParts = [];
-        if (!this.data.unlockedParts.includes(pieceName)) {
-            this.data.unlockedParts.push(pieceName);
-        }
     }
 
     setBase(pieceName) {

@@ -1,5 +1,5 @@
 import { Object3D } from "./Object3D.js";
-import { updateCameraUniforms } from "./CameraUniforms.js";
+import { updateCameraUniforms, lightingUniforms } from "./Uniforms.js";
 import { eulerToMat3, mat3TransformVec3, mat3Transpose } from "./Utils/Mat3Utils.js";
 
 export class Camera extends Object3D {
@@ -37,8 +37,10 @@ export class Camera extends Object3D {
         this.rot3d = { x: pitch, y: yaw, z: 0 };
     }
 
-    update() {
+    update(nightFactor = 0.0) {
         updateCameraUniforms(this, this.app.renderer.width, this.app.renderer.height);
+
+        lightingUniforms.uniforms.uNightFactor = nightFactor;
     }
 
     project(worldPos, width, height) {

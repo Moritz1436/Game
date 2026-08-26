@@ -66,9 +66,6 @@ export class EnemyCarManager {
         this.minLaneGap = options.minLaneGap ?? this.carWidth * 4;
         this.prefillFarFraction = options.prefillFarFraction ?? 0.5;
 
-        //for car spawning if its not null
-        this.maxZ = options.maxZ ?? null;
-
         const baseAsset = this.assetManager.getAssetByName(defaultConfig.base);
         this.scale = computeScaleForWidth(baseAsset, this.carWidth, "z");
         this.carLength = baseAsset.size.x * this.scale;
@@ -96,7 +93,6 @@ export class EnemyCarManager {
 
         for (let dist = farEnd; dist >= farStart; dist -= waveSpacing) {
             const spawnZ = this.camera.pos3d.z - dist;
-            if (this.maxZ != null && spawnZ < this.maxZ) continue;
 
             this._advanceFreeLane(spawnZ);
             const lanes = this._generateWavePattern();
@@ -147,7 +143,6 @@ export class EnemyCarManager {
 
     _spawnWave() {
         const spawnZ = this.camera.pos3d.z - this.spawnDistance;
-        if (this.maxZ != null && spawnZ < this.maxZ) return;
 
         this._advanceFreeLane(spawnZ);
         const lanes = this._generateWavePattern();
@@ -233,7 +228,7 @@ export class EnemyCarManager {
             car.setPosition(pos);
             car.updateWheels(dt, moveAmount, 0);
 
-            if (pos.z > this.camera.pos3d.z + this.despawnMargin || pos.z < this.maxZ) {
+            if (pos.z > this.camera.pos3d.z + this.despawnMargin) {
                 this.carManager.destroyCar(car);
                 this._enemyData.delete(car);
             }

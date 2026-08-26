@@ -12,6 +12,9 @@ import { DriveScene } from "../Road/DriveScene.js";
 import { GAMESTATE } from "../GameState.js";
 import { GarageScene } from "../Garage/GarageScene.js";
 import { QuestScene } from "../Quest/QuestScene.js";
+import { MapOverlay } from "./MapOverlay.js";
+import { MenuScene } from "../Menu/MenuScene.js";
+import { ShopScene } from "../Shop/ShopScene.js";
 
 export class MapScene extends UIScene {
 
@@ -38,14 +41,31 @@ export class MapScene extends UIScene {
     constructor(app, seed) {
         super(app, "MapScene");
         this.uiScene = new PIXI.Container();
+        this.uiSceneWrapper = new PIXI.Container();
         this.seed = seed;
 
         this.chunkLayer = new PIXI.Container();
         this.vegetationLayer = new PIXI.Container();
         this.cityLayer = new PIXI.Container();
-        this.uiScene.addChild(this.chunkLayer);
-        this.uiScene.addChild(this.vegetationLayer);
-        this.uiScene.addChild(this.cityLayer);
+        this.uiSceneWrapper.addChild(this.chunkLayer);
+        this.uiSceneWrapper.addChild(this.vegetationLayer);
+        this.uiSceneWrapper.addChild(this.cityLayer);
+
+        this.overlay = new MapOverlay(this.app, {
+            onMarkerClick: (city) => this._onMarkerClick(city),
+            onMenu: () => { 
+                const scene = new MenuScene(this.app, {
+                    onContinue: () => { SceneStack.popScene(); }, 
+                    onSettings: () => {}, 
+                    onStatistics: () => {}, 
+                    onAbout: () => {}, 
+                    onProfile: () => {}
+                });
+                SceneStack.pushScene(scene, false);
+            },
+        });
+        this.uiScene.addChild(this.uiSceneWrapper);
+        this.uiScene.addChild(this.overlay);
 
         this.cameraX = FULL_W / 2;
         this.cameraY = FULL_H / 2;
@@ -68,6 +88,7 @@ export class MapScene extends UIScene {
 
     update(deltaMS) {
         this.chunkManager.tick();
+        this.overlay.updateQuestMarkers(this.cameraX, this.cameraY);
     }
 
     _setup() {
@@ -87,6 +108,9 @@ export class MapScene extends UIScene {
             this.cityGroups.push(cityGroup);
         }
 
+        const currentCity = this.macro.world.cities[GAMESTATE.currentCityIndex];
+        this.overlay.setCity(currentCity.name);
+        this.overlay.setWorld(this.macro.world);
     }
 
     _bindPan() {
@@ -95,10 +119,11 @@ export class MapScene extends UIScene {
         let startX = 0, startY = 0, lastX = 0, lastY = 0;
         const DRAG_THRESHOLD = 6;
 
-        this.uiScene.eventMode = 'static';
-        this.uiScene.hitArea = new PIXI.Rectangle(0, 0, FULL_W, FULL_H);
+        this.uiSceneWrapper.eventMode = 'static';
+        this.uiSceneWrapper.hitArea = new PIXI.Rectangle(0, 0, FULL_W, FULL_H);
 
         const onDragStart = (e) => {
+            this._cameraAnimId = (this._cameraAnimId ?? 0) + 1;
             pointerDown = true;
             dragging = false;
             startX = lastX = e.global.x;
@@ -129,10 +154,10 @@ export class MapScene extends UIScene {
             this.cityLayer.eventMode = 'static';
         };
 
-        this.uiScene.on('pointerdown', onDragStart);
-        this.uiScene.on('pointerup', onDragEnd);
-        this.uiScene.on('pointerupoutside', onDragEnd);
-        this.uiScene.on('pointermove', onDragMove);
+        this.uiSceneWrapper.on('pointerdown', onDragStart);
+        this.uiSceneWrapper.on('pointerup', onDragEnd);
+        this.uiSceneWrapper.on('pointerupoutside', onDragEnd);
+        this.uiSceneWrapper.on('pointermove', onDragMove);
 
         this._onDragStart = onDragStart;
         this._onDragMove = onDragMove;
@@ -152,14 +177,38 @@ export class MapScene extends UIScene {
         // Ganzzahlig runden - sonst rendern benachbarte Chunk-Sprites bei
         // unterschiedlichen Subpixel-Positionen, was je nach Filtering
         // feine Naehte zwischen Chunks erzeugen kann.
-        this.uiScene.x = Math.round(this.app.screen.width / 2 - this.cameraX);
-        this.uiScene.y = Math.round(this.app.screen.height / 2 - this.cameraY);
+        this.uiSceneWrapper.x = Math.round(this.app.screen.width / 2 - this.cameraX);
+        this.uiSceneWrapper.y = Math.round(this.app.screen.height / 2 - this.cameraY);
         this.chunkManager.update(this.cameraX, this.cameraY);
+    }
+
+    _onMarkerClick(city) {
+        this._animateCameraTo(city.cx, city.cy, 650);
+    }
+
+    _animateCameraTo(targetX, targetY, durationMs) {
+        this._cameraAnimId = (this._cameraAnimId ?? 0) + 1;
+        const animId = this._cameraAnimId;
+        const startX = this.cameraX, startY = this.cameraY;
+        const t0 = performance.now();
+
+        const step = (now) => {
+            if (animId !== this._cameraAnimId) return; // abgebrochen (z.B. manuelles Draggen)
+            const t = Math.min(1, (now - t0) / durationMs);
+            const eased = 1 - Math.pow(1 - t, 3);
+            this._centerCameraOn(
+                startX + (targetX - startX) * eased,
+                startY + (targetY - startY) * eased
+            );
+            if (t < 1) requestAnimationFrame(step);
+        };
+        requestAnimationFrame(step);
     }
 
     _onCityClick(city) {
         const curCity = this.macro.world.cities[GAMESTATE.currentCityIndex ?? 0];
         const toCityIdx = this.macro.world.cities.indexOf(city);
+        const cityName = city.name;
 
         //already at that city
         if (GAMESTATE.currentCityIndex == toCityIdx){
@@ -186,7 +235,7 @@ export class MapScene extends UIScene {
             "DRIVE THERE",
             async () => {
                 SceneStack.popScene();
-                const scene = await DriveScene.create(this.app, distance, toCityIdx);
+                const scene = await DriveScene.create(this.app, distance, toCityIdx, cityName);
                 SceneStack.pushScene(scene, true);
             },
             "CANCEL",
@@ -220,7 +269,7 @@ export class MapScene extends UIScene {
             },
             shop: {
                 text: "INFORMATION\nThe shop is fully stocked. Want to take a look?",
-                openScene: async (app) => await QuestScene.create(app, this.macro.world, GAMESTATE.currentCityIndex),
+                openScene: (app) => new ShopScene(app),
             },
             quest: {
                 text: "INFORMATION\nThe local quest board is right here. Want to check it out?",
@@ -272,21 +321,23 @@ export class MapScene extends UIScene {
         this.chunkManager.destroy();
         for (const g of this.cityGroups) g.destroy({ children: true });
         this.cityGroups = [];
+        
+        this.overlay.destroy({ children: true });
 
         this.app.ticker.remove(this.update, this);
 
-        this.uiScene.off('pointerdown', this._onDragStart);
-        this.uiScene.off('pointerup', this._onDragEnd);
-        this.uiScene.off('pointerupoutside', this._onDragEnd);
-        this.uiScene.off('pointermove', this._onDragMove);
-        this.uiScene.eventMode = 'auto';
-        this.uiScene.hitArea = null;
+        this.uiSceneWrapper.off('pointerdown', this._onDragStart);
+        this.uiSceneWrapper.off('pointerup', this._onDragEnd);
+        this.uiSceneWrapper.off('pointerupoutside', this._onDragEnd);
+        this.uiSceneWrapper.off('pointermove', this._onDragMove);
+        this.uiSceneWrapper.eventMode = 'auto';
+        this.uiSceneWrapper.hitArea = null;
 
         if (this._onWindowPointerUp) {
             window.removeEventListener('pointerup', this._onWindowPointerUp);
         }
 
-        this.uiScene.destroy({ children: true });
+        this.uiSceneWrapper.destroy({ children: true });
     }
 
     generateWorldMacro(seed) {

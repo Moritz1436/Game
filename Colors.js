@@ -32,5 +32,7 @@ export const COLORS = {
     speedFill: 0xf4c542,
     rpmFillLow: 0x4caf50,
     rpmFillHigh: 0xd04040,
-    tipBg: 0x000000
+    tipBg: 0x000000,
+    panelBgHover: 0x353535,
+    blue: 0x2b86fb,
 };

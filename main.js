@@ -7,8 +7,6 @@ import { LoadingScreen } from "./LoadingScreen.js";
 import { GLOBAL_MANIFEST, loadGlobalAssetEntry, MAP_SEED } from "./GlobalAssets.js";
 import { ToastManager } from "./ToastManager.js";
 
-/////////// GLOBALS //////////////
-const resolution = 9/16;
 
 /* Note:
     Meshes and triangles are currently only created and destroyed in these classes:
@@ -19,26 +17,19 @@ window.DEBUG = {
     enabled: false,
     showMeshes: false,
     meshes: 0,
+    gridMeshes: 0,
+    gridMeshTriangles: 0,
     triangles: 0,
     speedHack: false,
     showCarBounds: false
-}
-
-function getWidth() {
-    return 1920;
-}
-
-function getHeight() {
-    return 1080;
-}
+};
 
 (async () => {
 
     //Setup
     const app = new PIXI.Application();
     await app.init({ 
-        width: getWidth(), 
-        height: getHeight(), 
+        resizeTo: window,
         backgroundColor: 0x222222, 
         antialias:false,
         powerPreference: "high-performance",
@@ -57,21 +48,6 @@ function getHeight() {
     });
 
     document.getElementById('game').appendChild(app.canvas);
-
-    function resizeCanvas() {
-
-        const width = window.innerWidth * 0.7;
-        const height = width * resolution;
-
-        app.canvas.style.width = width + "px";
-        app.canvas.style.height = height + "px";
-    }
-
-    window.addEventListener(
-        "resize",
-        resizeCanvas
-    );
-    resizeCanvas();
 
     // App Init
     setupDebug(app);
@@ -104,12 +80,16 @@ function setupDebug(app) {
     const fpsCounter = document.getElementById("fpsCounter");
     const meshCounter = document.getElementById("meshCounter");
     const triangleCounter = document.getElementById("triangleCounter");
+    const gridMeshTriangleCounter = document.getElementById("gridMeshTriangles")
+    const gridMeshCounter = document.getElementById("gridMeshes")
 
     app.ticker.add(() => {
         fpsCounter.textContent = `FPS: ${Math.round(app.ticker.FPS)}`;
 
         meshCounter.textContent = `MESHES: ${window.DEBUG.meshes}`;
         triangleCounter.textContent = `TRIANGLES: ${window.DEBUG.triangles}`;
+        gridMeshCounter.textContent = `GRIDMESHES: ${window.DEBUG.gridMeshes}`;
+        gridMeshTriangleCounter.textContent = `GRIDTRIANGLES: ${window.DEBUG.gridMeshTriangles}`;
     });
 }
 

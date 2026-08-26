@@ -3,7 +3,7 @@ import { GAMESTATE } from "../GameState";
 import { HorizontalScroller } from "./HorizonalScroller.js";
 import { HSVColorPicker } from "./HSVColorPicker.js";
 import { rgbToHex, rgbToHsv, hsvToRgb } from "./HSVColorPicker.js";
-import { COLOR_CHANGE_COST } from "../GlobalAssets.js";
+import { COLOR_CHANGE_COST} from "../GlobalAssets.js";
 import { NotifScreen } from "../NotifScreen.js";
 import { SceneStack } from "../Utils/SceneStack.js";
 import { COLORS } from "../Colors.js";
@@ -707,7 +707,7 @@ export class GarageOverlay extends PIXI.Container {
         }
 
         for (const asset of availableAssets) {
-            const unlocked = this.carConfigState.isPartUnlocked(asset.pieceName);
+            const unlocked = GAMESTATE.isPartUnlocked(asset.pieceName);
             const box = unlocked
                 ? createSelectableBox(this._boxSize, asset.pieceName, () => this._onOptionClick(type, asset))
                 : this._createLockedPartBox(this._boxSize, asset, () => this._onLockedPartClick(type, asset));
@@ -771,7 +771,7 @@ export class GarageOverlay extends PIXI.Container {
                 this._createNoMoneyScreen();
                 return;
             }
-            this.carConfigState.unlockPart(asset.pieceName);
+            GAMESTATE.unlockPart(asset.pieceName);
             this._onOptionClick(type, asset);
         });
     }

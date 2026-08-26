@@ -3,6 +3,7 @@ import { FULL_W, FULL_H, NOISE_SCALE, mulberry32, makeHash, fbm, smoothstepRange
     CITIES_PER_CHUNK_MAX } from "./Utils.js";
 import { CITY_PALETTES, CITY_FEATURES } from "./Palette.js";
 
+
 const CITY_NAME_POOL = [
     "Ashford", "Brightwater", "Cedar Hollow", "Dustpine", "Emberfall",
     "Fairhaven", "Graystone", "Hollowmere", "Ironbridge", "Juniper Bend",
@@ -12,6 +13,19 @@ const CITY_NAME_POOL = [
     "Amberfield", "Blackrock", "Copperton", "Driftwood", "Eastvale",
     "Foxhollow", "Greenmere", "Highridge", "Ivywood", "Long Meadow",
     "Marrowgate", "Nightfall Crossing", "Old Ferry", "Palmerston", "Quiet Bay",
+    "Ravenwood", "Stonebridge", "Timberline", "Umberfall", "Wolfden",
+    "Aldergrove", "Brackenfield", "Coldwater", "Deepwell", "Elmsworth",
+    "Fernhollow", "Gullford", "Harrowgate", "Ivyridge", "Jasperton",
+    "Kestrel Hollow", "Ledgeview", "Mistvale", "Nettlebrook", "Osprey Landing",
+    "Peregrine Falls", "Quailridge", "Rushbrook", "Stagshead", "Thistlewood",
+    "Ursine Hollow", "Vireo Bend", "Whitmoor", "Yarrowfield", "Ashenridge",
+    "Briarcliff", "Cinderford", "Duskmere", "Everwood", "Flintstone",
+    "Grimsby", "Heronbrook", "Ivorygate", "Jackalridge", "Kettleford",
+];
+
+const CITY_NAME_PREFIXES = [
+    "New", "Old", "East", "West", "North", "South",
+    "Upper", "Lower", "Fort", "Port", "Lake", "Mount",
 ];
 
 function shuffledCityNames(rand, count) {
@@ -22,15 +36,28 @@ function shuffledCityNames(rand, count) {
         const j = Math.floor(rand() * (i + 1));
         [pool[i], pool[j]] = [pool[j], pool[i]];
     }
-    if (count > pool.length) {
-        // Fallback fuer den unwahrscheinlichen Fall mehr Staedte als Namen
-        // im Pool (aktuell 40 Namen, cityCount liegt ueblicherweise deutlich
-        // darunter) - haengt einen Index an, um Duplikate zu vermeiden
-        const extra = [];
-        for (let i = pool.length; i < count; i++) extra.push(`${pool[i % pool.length]} ${Math.floor(i / pool.length) + 2}`);
-        return [...pool, ...extra];
+
+    if (count <= pool.length) {
+        return pool.slice(0, count);
     }
-    return pool.slice(0, count);
+
+    const prefixes = [...CITY_NAME_PREFIXES];
+    for (let i = prefixes.length - 1; i > 0; i--) {
+        const j = Math.floor(rand() * (i + 1));
+        [prefixes[i], prefixes[j]] = [prefixes[j], prefixes[i]];
+    }
+
+    const result = [...pool];
+    let round = 0;
+    while (result.length < count) {
+        const prefix = prefixes[round % prefixes.length];
+        for (let i = 0; i < pool.length && result.length < count; i++) {
+            result.push(`${prefix} ${pool[i]}`);
+        }
+        round++;
+    }
+
+    return result;
 }
 
 export class World {

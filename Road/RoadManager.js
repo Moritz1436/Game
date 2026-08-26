@@ -6,13 +6,12 @@ export class RoadManager {
     static laneWidth = 120;
     static sideWidthMultiplier = 1.3;
 
-    constructor(app, cam, layer, debugLayer, distance, options = {}) {
+    constructor(app, cam, layer, debugLayer, options = {}) {
 
         this.app = app;
         this.cam = cam;
         this.layer = layer;
         this.debugLayer = debugLayer;
-        this.distance = distance;
 
         this.laneCount = Math.max(2, options.laneCount ?? 3);
 
@@ -29,8 +28,6 @@ export class RoadManager {
             ? PIXI.Assets.get(options.middleTexturePath ?? "assets/lane_middle.png")
             : null;
         if (this.middleTexture) this.middleTexture.source.addressMode = "repeat";
-
-        this.maxSegment = Math.ceil(distance / this.segmentLength);
 
         this.laneLayout = this._computeLaneLayout();
 
@@ -83,7 +80,7 @@ export class RoadManager {
         const needed = new Set();
 
         for (let i = currentSegment - this.backChunks; i <= currentSegment + this.frontChunks; i++) {
-            if (i < 0 || i >= this.maxSegment) continue;
+            if (i < 0) continue;
 
             for (let lane = 0; lane < this.laneCount; lane++) {
                 const key = `${i}_${lane}`;

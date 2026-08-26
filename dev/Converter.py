@@ -392,7 +392,7 @@ def convert_primitive(gltf, glb_bin_chunk, base_dir, primitive, world_matrix,
 # Main conversion
 # --------------------------------------------------------------------------
 
-def convert(input_path, output_path, texture_dir='assets/models', apply_transform=True,
+def convert(input_path, output_path, texture_dir='assets/models/nature', apply_transform=True,
             source_z_up=False):
     base_dir = os.path.dirname(os.path.abspath(input_path))
     out_dir = os.path.dirname(os.path.abspath(output_path)) or '.'
@@ -497,7 +497,7 @@ def main():
     parser = argparse.ArgumentParser(description="Convert a .glb file to a custom JSON model format.")
     parser.add_argument('input', help="Path to input .glb file")
     parser.add_argument('output', help="Path to output .json file")
-    parser.add_argument('--texture-dir', default='assets/models',
+    parser.add_argument('--texture-dir', default='assets/models/nature',
                          help="Folder prefix used for texture paths in the JSON (default: assets/models)")
     parser.add_argument('--no-transform', action='store_true',
                          help="Don't bake node world transforms into vertex positions (use raw local mesh-space coords)")

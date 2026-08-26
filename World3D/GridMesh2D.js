@@ -103,13 +103,17 @@ export class GridMesh2D extends Object3D {
         });
         //Debug count stats
         window.DEBUG.meshes++;
+        window.DEBUG.gridMeshes++;
         window.DEBUG.triangles += this.indices.length / 3;
+        window.DEBUG.gridMeshTriangles += this.indices.length / 3;
     }
 
     destroy(layer) {
         //Debug count stats
         window.DEBUG.meshes--;
+        window.DEBUG.gridMeshes--;
         window.DEBUG.triangles -= this.indices.length / 3;
+        window.DEBUG.gridMeshTriangles -= this.indices.length / 3;
         this.mesh.destroy();
         this.geometry.destroy();
         layer.removeChild(this.mesh);
