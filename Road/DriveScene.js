@@ -337,6 +337,18 @@ export class DriveScene extends UIScene {
             }
         });
 
+        // Fade-to-black beim Erreichen des Ziels
+        this.fadeOverlay = new PIXI.Graphics();
+        this.fadeOverlay.beginFill(0x000000);
+        this.fadeOverlay.drawRect(0, 0, app.screen.width, app.screen.height);
+        this.fadeOverlay.endFill();
+        this.fadeOverlay.alpha = 0;
+        this.fadeOverlay.eventMode = 'none'; // blockiert keine Klicks, auch bei alpha 0
+        this.fadeDuration = 1.2; // Sekunden, wie lange das Ausfaden dauert
+        this._sceneEnding = false;
+        this._transitioning = false;
+        this._fadeAlpha = 0;
+
         this.windEffect = new WindEffect(app, this.camera, this.playerCar, {
             count: 30,
             baseColor: 0x797979,
@@ -354,6 +366,7 @@ export class DriveScene extends UIScene {
         this.uiScene.addChild(this.debugLayerUI);
         this.uiScene.addChild(this.windEffect);
         this.uiScene.addChild(this.driveOverlay);
+        this.uiScene.addChild(this.fadeOverlay);
 
         //base background
         const groundLength = scaledDistance + 3200;
@@ -400,6 +413,16 @@ export class DriveScene extends UIScene {
         //frame indipendant
         const dt = ticker.deltaMS / 1000;
 
+        // --- Fade-to-black Handling ---
+        if (this._sceneEnding) {
+            this._fadeAlpha = Math.min(1, this._fadeAlpha + dt / this.fadeDuration);
+            this.fadeOverlay.alpha = this._fadeAlpha;
+
+            if (this._fadeAlpha >= 1 && !this._transitioning) {
+                this._transitioning = true;
+                await this._finishJourney();
+            }
+        }
         
         if (Input.isKeyDown("KeyW")) {
             this.targetSpeed = this.baseSpeed;
@@ -504,11 +527,7 @@ export class DriveScene extends UIScene {
         this.lastDistance = distanceCovered;
         ToastManager.update('distance', { deltaMeters: deltaMeters / DISTANCE_SCALE, toCityIdx: this.toCityIdx });
         if (distanceCovered >= this.distance){
-            GAMESTATE.setCurrentCity(this.toCityIdx, this.toCityName);
-            ToastManager.update('city_reached', { cityIndex: this.toCityIdx });          
-            const scene = await MapScene.create(this.app, MAP_SEED);
-            SceneStack.pushScene(scene);
-            return;
+            this._sceneEnding = true;
         }
 
         //position lerping 
@@ -532,7 +551,7 @@ export class DriveScene extends UIScene {
             this.carManager.hideDebugOutlines();
         }
 
-        this.enemyCarManager.update(dt);
+        this.enemyCarManager.update(dt, !this._sceneEnding);
 
         //update mountains
         this.mountains.update();
@@ -578,5 +597,12 @@ export class DriveScene extends UIScene {
 
         const nightFactor = this.mountains.nightFactor;
         this.camera.update(nightFactor);
+    }
+
+    async _finishJourney() {
+        GAMESTATE.setCurrentCity(this.toCityIdx, this.toCityName);
+        ToastManager.update('city_reached', { cityIndex: this.toCityIdx });
+        const scene = await MapScene.create(this.app, MAP_SEED);
+        SceneStack.pushScene(scene);
     }
 }

@@ -46,6 +46,8 @@ export class ObjectManager {
         this.guardRailScale = 9;
         this.guardRailOffsetX = 30;      // Abstand Fahrbahnrand -> Guard-Rail-Pivot
         this.guardRailClearanceX = 40;   // Abstand Fahrbahnrand -> restliche Objekte (muss > guardRailOffsetX + halbe Rail-Breite sein)
+        this.guardRailInstances = { left: new Map(), right: new Map() };
+        this._guardRailSegLength = this._computeGuardRailSegLength();
  
         this.cityStartFraction = 0.80;
         this.cityStartZ = this.distance * this.cityStartFraction;
@@ -76,6 +78,16 @@ export class ObjectManager {
         this._houseCursorZ = { left: [], right: [] };
  
         this.maxChunk = Math.ceil(this.cityEndZ / this.chunkLength);
+    }
+
+
+    _computeGuardRailSegLength() {
+        const asset = this.assets.guard_rail?.low?.[0];
+        if (!asset) {
+            console.warn(`ObjectManager: assets.guard_rail.low[0] nicht gefunden - Guard-Rail wird übersprungen.`);
+            return null;
+        }
+        return asset.size.z * this.guardRailScale;
     }
  
     update() {
@@ -118,8 +130,62 @@ export class ObjectManager {
                 this.unloadChunk(id);
             }
         }
+
+        this.updateGuardRails();
  
         this.processCreationQueue();
+    }
+
+    computeGuardRailTransitionT(chunkZ) {
+        return smoothstep(this.cityStartZ, this.cityStartZ + this.wallFadeZoneLength, chunkZ);
+    }
+
+    updateGuardRails() {
+        const segLen = this._guardRailSegLength;
+        if (segLen == null) return;
+
+        const camZ = this.camera.pos3d.z;
+
+        for (const isLeft of [true, false]) {
+            const sideKey = isLeft ? 'left' : 'right';
+            const map = this.guardRailInstances[sideKey];
+
+            // Segment-Index an der Kamera-Position
+            const iCurrent = Math.floor(-camZ / segLen);
+
+            // etwas Puffer nach hinten (nie 0, sonst poppt ein Segment exakt in
+            // dem Frame weg, in dem die Kamera es passiert), grosszuegig nach
+            // vorne bis zur Sichtweite
+            const backSegs = 1;
+            const frontSegs = Math.ceil(this.camera.far / segLen) + 2;
+
+            const needed = new Set();
+
+            for (let i = Math.max(0, iCurrent - backSegs); i <= iCurrent + frontSegs; i++) {
+                const zNear = -i * segLen;
+                const zFar = zNear - segLen;
+                const zCenter = zNear - segLen * 0.5;
+
+                const distanceZ = -zCenter;
+                const cityT = this.computeCityT(distanceZ);
+                if (cityT >= 0.1) continue;
+
+                needed.add(i);
+
+                if (!map.has(i)) {
+                    map.set(i, this._createGuardRailSegment(i, isLeft, segLen));
+                }
+            }
+
+            // alles entladen, was nicht mehr gebraucht wird (zu weit hinter der
+            // Kamera ODER inzwischen in der Stadt-Zone liegt)
+            for (const [i, instance] of map) {
+                if (!needed.has(i)) {
+                    instance.destroy();
+                    map.delete(i);
+                }
+            }
+        }
     }
  
     queueInstanceCreation(chunk) {
@@ -341,37 +407,20 @@ export class ObjectManager {
         }
     }
 
-    createGuardRailSegments(id, isLeft) {
-        const asset = this.assets.guard_rail?.low?.[0];
-        if (!asset) {
-            console.warn(`ObjectManager: assets.guard_rail.low[0] nicht gefunden - Guard-Rail wird übersprungen.`);
-            return [];
-        }
- 
+    _createGuardRailSegment(i, isLeft, segLen) {
+        const asset = this.assets.guard_rail.low[0];
+
         const x = isLeft
             ? -this.roadHalf - this.guardRailOffsetX
             :  this.roadHalf + this.guardRailOffsetX;
- 
+
         const rotation = isLeft ? IDENTITY_MAT3 : rotationY(Math.PI);
- 
-        const segLength = asset.size.z * this.guardRailScale;
- 
-        const iStart = Math.ceil(id * this.chunkLength / segLength);
-        const iEnd = Math.ceil((id + 1) * this.chunkLength / segLength) - 1;
- 
-        const instances = [];
-        for (let i = iStart; i <= iEnd; i++) {
-            const zNear = -i * segLength;       // nahe Kante des Intervalls (Welt-Raster)
-            const zFar = zNear - segLength;      // ferne Kante (Richtung Horizont)
- 
-            const z = isLeft ? zNear : zFar;
- 
-            instances.push(
-                new ModelInstance(asset, this.layer, { x, y: 0, z }, this.guardRailScale, rotation)
-            );
-        }
- 
-        return instances;
+
+        const zNear = -i * segLen;
+        const zFar = zNear - segLen;
+        const z = isLeft ? zFar : zNear;
+
+        return new ModelInstance(asset, this.layer, { x, y: 0, z }, this.guardRailScale, rotation);
     }
 
     getObjectLOD(type, chunkLOD) {
@@ -447,6 +496,10 @@ export class ObjectManager {
         return smoothstep(this.cityStartZ + sideOffset, this.cityStartZ + sideOffset + this.wallFadeZoneLength, chunkZ);
     }
 
+    computeCityT(distanceZ) {
+        return clamp01((distanceZ - this.cityStartZ) / (this.cityEndZ - this.cityStartZ));
+    }
+
     loadChunk(id, lod) {
         const chunkZ = id * this.chunkLength + this.chunkLength * 0.5;
         const cityT = clamp01((chunkZ - this.cityStartZ) / (this.cityEndZ - this.cityStartZ));
@@ -454,92 +507,114 @@ export class ObjectManager {
         const objects = [];
         let forestWallLeft = null;
         let forestWallRight = null;
-        const transitionBySide = {};
 
         // Definiere die Margins
         const treeMarginNear = 3;   // Abstand von der Straße
-        const treeMarginFar = 8;    // Abstand von den Häusern
+        const treeMarginFar = 15;   // Abstand von den Häusern (Stadt) / generell (Wald)
 
         for (const isLeft of [true, false]) {
-            const sideKey = isLeft ? 'left' : 'right';
             const transitionT = this.computeTransitionT(chunkZ, isLeft);
-            transitionBySide[sideKey] = transitionT;
 
             const inCityZone = transitionT > 0;
 
-            // --- BÄUME SPAWNEN ---
-            let treeStartT, treeEndT;
-            
-            if (inCityZone) {
-                // STADT: Von der Straße (mit kleinem Abstand) bis kurz vor die Häuser
-                // Der gesamte Bereich wird befüllt (inklusive guardRailClearance!)
-                const treeZoneStart = 0 + treeMarginNear;
-                const treeZoneEnd = this.guardRailClearanceX + this.treeRowSize - treeMarginFar;
-                treeStartT = clamp01(treeZoneStart / this.loadingDistanceX);
-                treeEndT = clamp01(treeZoneEnd / this.loadingDistanceX);
-            } else {
-                // WALD: Nur außerhalb des Guard Rail Bereichs
-                // Der Bereich zwischen Straße und Guard Rail bleibt leer
-                const treeZoneStart = this.guardRailClearanceX + treeMarginNear;
-                const treeZoneEnd = this.loadingDistanceX;
-                treeStartT = clamp01(treeZoneStart / this.loadingDistanceX);
-                treeEndT = clamp01(treeZoneEnd / this.loadingDistanceX);
-            }
-            
             // Anzahl der Objekte
-            const objCount = inCityZone 
-                ? Math.floor(Math.random() * this.objectsPerChunkPerSide * 0.1)  // Stadt: etwas weniger
+            const objCount = inCityZone
+                ? Math.floor(Math.random() * this.objectsPerChunkPerSide * 0.5)  // Stadt: etwas weniger
                 : this.objectsPerChunkPerSide;  // Wald: normale Dichte
 
-            // Nur spawnen, wenn der Bereich gültig ist
-            if (treeStartT < treeEndT) {
-                for (let i = 0; i < objCount; i++) {
-                    // Zufällige Position innerhalb des gültigen Bereichs
-                    const t = treeStartT + Math.random() * (treeEndT - treeStartT);
-                    
-                    const type = this.chooseType(t);
-                    const distToRoadX = t * this.loadingDistanceX;
-                    const variant = this.randomVariant(type);
+            if (inCityZone) {
+                // --- STADT: Bäume auf dem Grünstreifen vor den Häusern ---
+                const zoneNear = this.guardRailClearanceX + treeMarginNear;   // Abstand von der Straße
+                const zoneFar  = this.houseRowDistanceX - treeMarginFar;       // Abstand bis vor die Häuser
 
-                    let scale;
-                    switch(type) {
-                        case "trees": scale = 30 + Math.random() * 15; break;
-                        case "rocks": scale = 25 + Math.random() * 10; break;
-                        case "grass": scale = 80 + Math.random() * 40; break;
-                        case "bushes": scale = 50 + Math.random() * 20; break;
+                if (zoneFar > zoneNear) {
+                    for (let i = 0; i < objCount; i++) {
+                        const type = this.chooseType(Math.random());
+                        const variant = this.randomVariant(type);
+
+                        let scale;
+                        switch (type) {
+                            case "trees": scale = 30 + Math.random() * 15; break;
+                            case "rocks": scale = 25 + Math.random() * 10; break;
+                            case "grass": scale = 80 + Math.random() * 40; break;
+                            case "bushes": scale = 50 + Math.random() * 20; break;
+                        }
+
+                        const asset = this.assets[type].high[variant];
+                        const halfSize = asset.size.x * scale * 0.5;
+
+                        // Mittelpunkt so wählen, dass NAHE und FERNE Kante
+                        // garantiert innerhalb [zoneNear, zoneFar] bleiben.
+                        const minDist = zoneNear + halfSize;
+                        const maxDist = zoneFar - halfSize;
+
+                        if (minDist > maxDist) continue; // Objekt zu groß fuer die Zone
+
+                        const distFromRoad = minDist + Math.random() * (maxDist - minDist);
+
+                        const x = isLeft
+                            ? -this.roadHalf - distFromRoad
+                            :  this.roadHalf + distFromRoad;
+
+                        const startZ = -id * this.chunkLength;
+
+                        objects.push({
+                            type,
+                            variant,
+                            pos3d: {
+                                x,
+                                y: 0,
+                                z: startZ - Math.random() * this.chunkLength
+                            },
+                            scale,
+                            instance: null
+                        });
                     }
+                }
+            } else {
+                // --- WALD: Nur außerhalb des Guard Rail Bereichs ---
+                const treeZoneStart = this.guardRailClearanceX + treeMarginNear;
+                const treeZoneEnd = this.loadingDistanceX;
+                const treeStartT = clamp01(treeZoneStart / this.loadingDistanceX);
+                const treeEndT = clamp01(treeZoneEnd / this.loadingDistanceX);
 
-                    const asset = this.assets[type].high[variant];
-                    const halfSize = asset.size.x * scale * 0.5;
+                if (treeStartT < treeEndT) {
+                    for (let i = 0; i < objCount; i++) {
+                        const t = treeStartT + Math.random() * (treeEndT - treeStartT);
 
-                    // In der Stadt: Kein guardRailClearance Abzug!
-                    // Im Wald: Mit guardRailClearance Abzug (weil die Guard Rail da ist)
-                    let x;
-                    if (inCityZone) {
-                        // Stadt: Direkt an der Straße (mit Abstand)
-                        x = isLeft
-                            ? -this.roadHalf - halfSize - distToRoadX
-                            :  this.roadHalf + halfSize + distToRoadX;
-                    } else {
-                        // Wald: Hinter der Guard Rail
-                        x = isLeft
+                        const type = this.chooseType(t);
+                        const distToRoadX = t * this.loadingDistanceX;
+                        const variant = this.randomVariant(type);
+
+                        let scale;
+                        switch (type) {
+                            case "trees": scale = 30 + Math.random() * 15; break;
+                            case "rocks": scale = 25 + Math.random() * 10; break;
+                            case "grass": scale = 80 + Math.random() * 40; break;
+                            case "bushes": scale = 50 + Math.random() * 20; break;
+                        }
+
+                        const asset = this.assets[type].high[variant];
+                        const halfSize = asset.size.x * scale * 0.5;
+
+                        const x = isLeft
                             ? -this.roadHalf - this.guardRailClearanceX - halfSize - distToRoadX
                             :  this.roadHalf + this.guardRailClearanceX + halfSize + distToRoadX;
+
+                        const startZ = -id * this.chunkLength;
+
+                        objects.push({
+                            type,
+                            variant,
+                            pos3d: {
+                                x,
+                                y: 0,
+                                z: startZ - Math.random() * this.chunkLength
+                            },
+                            scale,
+                            instance: null
+                        });
                     }
-
-                    const startZ = -id * this.chunkLength;
-
-                    objects.push({
-                        type,
-                        variant,
-                        pos3d: {
-                            x,
-                            y: 0,
-                            z: startZ - Math.random() * this.chunkLength
-                        },
-                        scale,
-                        instance: null
-                    });
                 }
             }
 
@@ -559,16 +634,9 @@ export class ObjectManager {
             }
         }
 
-        // Guard-Rails: NUR außerhalb der Stadt (wenn transitionT <= 0)
-        const guardRailLeft = transitionBySide.left <= 0
-            ? this.createGuardRailSegments(id, true) : [];
-        const guardRailRight = transitionBySide.right <= 0
-            ? this.createGuardRailSegments(id, false) : [];
-
         const chunk = {
             id, lod, objects,
-            forestWallLeft, forestWallRight,
-            guardRailLeft, guardRailRight
+            forestWallLeft, forestWallRight
         };
         this.loadedChunks.set(id, chunk);
         this.queueInstanceCreation(chunk);
@@ -583,15 +651,17 @@ export class ObjectManager {
         if (chunk.forestWallLeft) chunk.forestWallLeft.destroy();
         if (chunk.forestWallRight) chunk.forestWallRight.destroy();
 
-        if (chunk.guardRailLeft) for (const inst of chunk.guardRailLeft) inst.destroy();
-        if (chunk.guardRailRight) for (const inst of chunk.guardRailRight) inst.destroy();
-
         this.loadedChunks.delete(id);
     }
 
     destroy() {
         for (const id of this.loadedChunks.keys()) {
             this.unloadChunk(id);
+        }
+
+        for (const map of Object.values(this.guardRailInstances)) {
+            for (const instance of map.values()) instance.destroy();
+            map.clear();
         }
 
         this.loadedChunks.clear();

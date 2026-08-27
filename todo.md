@@ -10,6 +10,7 @@ HTML:
     - might go to fullscreen idk
     - save and load settings
     - profile
+    - open/close dev-tools doesnt count as resize? 
 
 RaceScene -> invest and then money making:
     - todo
@@ -29,16 +30,14 @@ GasStationScene -> viewing other peoples car (online)
     - todo
 
 DriveScene:
-    - better ground texture
-    - finish somehow (drive into a city??)
     - Car spawning, not via waves with 1 empty, but pre made patterns
     - wind looks ugly
     - straßenschilder (über straße und seite) + laternen (light source!)
     - meshes runterkriegen!! tris sind egal und dann light_sources (tris bis 10mio ok)
-        main problem are objects: 35 (objects per side) * 12 (chunks per side) * 2 (sides) * 2 (meshes per obj on avg) = 1680 Meshes!!
-        solution: low res -> tree-groups; image texture for each obj instead of base color -> meshes / 2
-    - fade out at the end
-    - city: trees are inside buildings grr
+        main problem are objects: 35 (objects per side) * 12 (chunks per side) * 2 (sides) = 840 Meshes!!
+        solution: 
+            - tree-groups with each just 1 mesh instead of solo trees
+            - objectperchunk in der ferne auch weniger
 
     LATER:
     - bioms (+ biom specific surrounding models)

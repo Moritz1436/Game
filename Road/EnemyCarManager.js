@@ -210,7 +210,7 @@ export class EnemyCarManager {
         this._enemyData.set(car, { speed, lane });
     }
 
-    update(dt) {
+    update(dt, checkCollisions1 = true) {
         // ---- Spawnen (in Wellen, statt pro Auto einzeln) ----
         this._spawnTimer -= dt;
         if (this._spawnTimer <= 0) {
@@ -233,6 +233,8 @@ export class EnemyCarManager {
                 this._enemyData.delete(car);
             }
         }
+
+        if (!checkCollisions1) return;
 
         // ---- Collisions ----
         const collisions = this.carManager.checkCollisions();

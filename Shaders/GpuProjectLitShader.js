@@ -88,7 +88,8 @@ void main() {
     }
 
     vec4 tex = texture2D(uTexture, vUV);
-    vec3 albedo = tex.rgb * uBaseColor.rgb;
+    vec3 texLinear = pow(tex.rgb, vec3(2.2));
+    vec3 albedo = texLinear * uBaseColor.rgb;
 
     vec3 N = normalize(vWorldNormal);
     vec3 L = uLightDir;
