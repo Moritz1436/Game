@@ -10,6 +10,7 @@ export class ModelAsset {
         this.meshes = [];
         this.sockets = data.sockets ?? [];
         this.requiredSocketTypes = data.requiredSocketTypes ?? [];
+        this.modifiers = data.modifiers ?? [];
 
         let minX = Infinity;
         let minY = Infinity;

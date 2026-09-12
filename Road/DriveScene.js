@@ -339,9 +339,7 @@ export class DriveScene extends UIScene {
 
         // Fade-to-black beim Erreichen des Ziels
         this.fadeOverlay = new PIXI.Graphics();
-        this.fadeOverlay.beginFill(0x000000);
-        this.fadeOverlay.drawRect(0, 0, app.screen.width, app.screen.height);
-        this.fadeOverlay.endFill();
+        this.fadeOverlay.rect(0, 0, app.screen.width, app.screen.height).fill(0x000000);
         this.fadeOverlay.alpha = 0;
         this.fadeOverlay.eventMode = 'none'; // blockiert keine Klicks, auch bei alpha 0
         this.fadeDuration = 1.2; // Sekunden, wie lange das Ausfaden dauert
@@ -421,6 +419,7 @@ export class DriveScene extends UIScene {
             if (this._fadeAlpha >= 1 && !this._transitioning) {
                 this._transitioning = true;
                 await this._finishJourney();
+                return;
             }
         }
         

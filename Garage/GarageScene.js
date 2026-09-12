@@ -9,6 +9,7 @@ import { UIScene } from "../Utils/UIScene.js";
 import { MapScene } from "../Map/MapScene.js";
 import { SceneStack } from "../Utils/SceneStack.js";
 import { CarConfigState } from "../Car/CarConfigState.js";
+import { mat3Mul, rotationY } from "../World3D/Utils/Mat3Utils.js";
 import { LoadingScreen } from "../LoadingScreen.js";
 import { GAMESTATE } from "../GameState.js";
 import { globalAssetManager, MAP_SEED } from "../GlobalAssets.js";
@@ -24,6 +25,14 @@ import { globalAssetManager, MAP_SEED } from "../GlobalAssets.js";
     spoiler_big.json:    224 Tris | 1 Meshes
 
 */
+
+const DROP_HEIGHT = 120;        // Start-Offset über der Ruheposition
+const GRAVITY = -1200;          // units/s²
+const BOUNCE_DAMPING = 0.45;    // Energieverlust pro Bounce
+const MAX_BOUNCES = 2;
+const IDLE_THRESHOLD = 4;       // Sekunden ohne manuelle Kamera-Rotation
+const AUTO_ROTATE_SPEED = 0.15;  // rad/s, Auto-Spin des Autos
+const WHEEL_IDLE_SPIN_SPEED = 6; // fake "Vorwärts"-Distanz/s für Rad-Roll
 
 export class GarageScene extends UIScene {
 
@@ -87,6 +96,21 @@ export class GarageScene extends UIScene {
         const scale = 30;
         this.car = this.carManager.spawnPlayerCar(config, target, scale);
 
+        // --- Drop-Animation vorbereiten ---
+        this._restPos = { ...this.car.pos3d };
+        this._dropAnim = {
+            active: true,
+            velocityY: 0,
+            bounces: 0,
+        };
+        this.car.setPosition({ ...this._restPos, y: this._restPos.y + DROP_HEIGHT });
+
+        // --- Räder für Roll-Animation initialisieren ---
+        this.car.initWheelState();
+
+        // --- Idle/Auto-Rotate State ---
+        this.idleTimer = 0;
+        this.autoRotateAngle = 0;
 
         this.overlay = new GarageOverlay(this.app, globalAssetManager, this.car, this.carConfig, {
             onExit: async (config) => {
@@ -109,25 +133,73 @@ export class GarageScene extends UIScene {
         app.ticker.add(this.update, this);
     }
 
+    _updateDropAnim(dt) {
+        const anim = this._dropAnim;
+        anim.velocityY += GRAVITY * dt;
+
+        let newY = this.car.pos3d.y + anim.velocityY * dt;
+
+        if (newY <= this._restPos.y) {
+            newY = this._restPos.y;
+
+            if (Math.abs(anim.velocityY) > 20 && anim.bounces < MAX_BOUNCES) {
+                anim.velocityY = -anim.velocityY * BOUNCE_DAMPING;
+                anim.bounces++;
+            } else {
+                anim.velocityY = 0;
+                anim.active = false;
+            }
+        }
+
+        this.car.setPosition({ x: this.car.pos3d.x, y: newY, z: this.car.pos3d.z });
+    }
+
     update(ticker) {
         const dt = ticker.deltaMS / 1000;
         const rotateSpeed = 1.2;
 
-        //rotate cam
-        if (Input.isKeyDown("ArrowDown")) this.orbitController.rotate(0, -rotateSpeed * dt);
-        if (Input.isKeyDown("ArrowUp")) this.orbitController.rotate(0, rotateSpeed * dt);
-        if (Input.isKeyDown("ArrowLeft")) this.orbitController.rotate(-rotateSpeed * dt, 0);
-        if (Input.isKeyDown("ArrowRight")) this.orbitController.rotate(rotateSpeed * dt, 0);
-
+        let manualRotateInput = false;
+        if (Input.isKeyDown("ArrowDown")) { this.orbitController.rotate(0, -rotateSpeed * dt); manualRotateInput = true; }
+        if (Input.isKeyDown("ArrowUp")) { this.orbitController.rotate(0, rotateSpeed * dt); manualRotateInput = true; }
+        if (Input.isKeyDown("ArrowLeft")) { this.orbitController.rotate(-rotateSpeed * dt, 0); manualRotateInput = true; }
+        if (Input.isKeyDown("ArrowRight")) { this.orbitController.rotate(rotateSpeed * dt, 0); manualRotateInput = true; }
+        if (this.isDraggingCamera) manualRotateInput = true;
 
         this.orbitController.update();
         this.camera.update();
-        
+
         this.ground.update(this.app, this.camera);
         if (window.DEBUG.enabled && window.DEBUG.showCarBounds) {
             this.car.showDebugOutline(this.debugLayer);
         } else {
             this.car.hideDebugOutline();
+        }
+
+        if (this._dropAnim.active) {
+            this._updateDropAnim(dt);
+        }
+
+        if (this.car.wheelSockets) {
+            this.car.updateWheels(dt, WHEEL_IDLE_SPIN_SPEED * dt, 0);
+        }
+
+        // --- Idle Auto-Rotate (Turntable) ---
+        if (manualRotateInput) {
+            if (this.idleTimer >= IDLE_THRESHOLD) {
+                // War gerade am auto-rotieren -> aktuellen Spin-Stand als neue
+                // Basis übernehmen, damit updateWheels() nicht zurückspringt.
+                this.car.baseRot = mat3Mul(rotationY(this.autoRotateAngle), this.car.baseRot);
+            }
+            this.idleTimer = 0;
+            this.autoRotateAngle = 0;
+        } else {
+            this.idleTimer += dt;
+        }
+
+        if (this.idleTimer >= IDLE_THRESHOLD) {
+            this.autoRotateAngle += AUTO_ROTATE_SPEED * dt;
+            const turntableMat = mat3Mul(rotationY(this.autoRotateAngle), this.car.baseRot);
+            this.car.setRotation(turntableMat);
         }
     }
 

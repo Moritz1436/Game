@@ -99,6 +99,12 @@ export class Car extends Object3D {
             this.rootPiece.attachChild(socketName, piece);
         }
 
+        for (const [type, modValues] of Object.entries(config.modifierValues ?? {})) {
+            for (const piece of this.getPiecesByType(type)) {
+                piece.importModifierValues(modValues);
+            }
+        }
+
         for (const [type, meshColors] of Object.entries(config.colors ?? {})) {
             if (type === "base") {
                 this.applyPieceColors(this.rootPiece, meshColors);
@@ -109,6 +115,19 @@ export class Car extends Object3D {
 
             for (const piece of pieces) {
                 this.applyPieceColors(piece, meshColors);
+            }
+        }
+
+        for (const [type, meshMaterials] of Object.entries(config.materials ?? {})) {
+            if (type === "base") {
+                this.applyPieceMaterials(this.rootPiece, meshMaterials);
+                continue;
+            }
+
+            const pieces = this.getPiecesByType(type);
+
+            for (const piece of pieces) {
+                this.applyPieceMaterials(piece, meshMaterials);
             }
         }
 
@@ -123,7 +142,7 @@ export class Car extends Object3D {
         this._refreshDebugShape();
     }
 
-    replacePart(type, pieceName) {
+    replacePart(type, pieceName, modifierValues = null) {
         if (!this.rootPiece) return;
 
         const MIRRORED_SOCKETS = new Set([
@@ -191,6 +210,15 @@ export class Car extends Object3D {
 
             const colors = this.currentConfig?.colors?.[socketName];
             this.applyPieceColors(piece, colors);
+
+            const materials = this.currentConfig?.materials?.[socketName];
+            this.applyPieceMaterials(piece, materials);
+        }
+
+        if (modifierValues) {
+            for (const piece of this.getPiecesByType(type)) {
+                piece.importModifierValues(modifierValues);
+            }
         }
 
         this.rootPiece.updateWorldTransform();
@@ -287,8 +315,7 @@ export class Car extends Object3D {
     rotate(rot, piece = null) {
         const target = this._getPiece(piece);
         if (!target) return;
-        target.localRotationMatrix = mat3Mul(target.localRotationMatrix, rot);
-        target.updateWorldTransform();
+        target.rotate(rot);
     }
 
     ///@param rot: 3x3 matrix
@@ -296,10 +323,8 @@ export class Car extends Object3D {
     setRotation(mat, piece = null) {
         const target = this._getPiece(piece);
         if (!target) return;
-        target.localRotationMatrix = [...mat];
-        target.updateWorldTransform();
+        target.setExternalRotation(mat);
 
-        //only when root was changed
         if (!piece) this._syncDebugTransform();
     }
 
@@ -307,7 +332,7 @@ export class Car extends Object3D {
     getRotation(piece = null) {
         const target = this._getPiece(piece);
         if (!target) return;
-        return target.localRotationMatrix ? [... target.localRotationMatrix] : [];
+        return target.getExternalRotation();
     }
 
     ///@param piece: name of the piece, null => root
@@ -344,12 +369,14 @@ export class Car extends Object3D {
     }
 
     exportConfig() {
-        const config = { base: this.rootPiece.asset.pieceName, parts: {}, colors: {}, properties: this.properties };
+        const config = { base: this.rootPiece.asset.pieceName, parts: {}, colors: {}, materials: {}, properties: this.properties };
 
         config.colors["base"] = this.exportPieceColors(this.rootPiece);
+        config.materials["base"] = this.exportPieceMaterials(this.rootPiece);
         for (const [socketName, child] of this.rootPiece.children) {
             config.parts[socketName] = child.asset.pieceName;
             config.colors[socketName] = this.exportPieceColors(child);
+            config.materials[socketName] = this.exportPieceMaterials(child);
         }
 
         return config;
@@ -373,12 +400,44 @@ export class Car extends Object3D {
         return overrides;
     }
 
+    exportPieceMaterials(piece) {
+        const overrides = {};
+        for (const meshEntry of piece.meshes) {
+            const currentMetallic = meshEntry.mesh.shader.resources.uMaterial.uniforms.uMetallic;
+            const currentRoughness = meshEntry.mesh.shader.resources.uMaterial.uniforms.uRoughness;
+            const defaultEntry = piece.asset.meshes.find(m => m.name === meshEntry.name);
+            if (!defaultEntry) continue;
+
+            const defaultMetallic = defaultEntry.metallic ?? 1.0;
+            const defaultRoughness = defaultEntry.roughness ?? 1.0;
+
+            const metallicChanged = Math.abs(currentMetallic - defaultMetallic) > 0.001;
+            const roughnessChanged = Math.abs(currentRoughness - defaultRoughness) > 0.001;
+
+            if (metallicChanged || roughnessChanged) {
+                overrides[meshEntry.name] = {
+                    metallic: metallicChanged ? currentMetallic : undefined,
+                    roughness: roughnessChanged ? currentRoughness : undefined,
+                };
+            }
+        }
+        return overrides;
+    }
+
     // meshColors: optional { meshName: colorHex, ... }. Meshes NOT listed here
     // keep whatever baseColor came from the model JSON (the "default").
     applyPieceColors(piece, meshColors) {
         if (!meshColors) return; // no overrides at all for this piece -> everything stays default
         for (const [meshName, colorHex] of Object.entries(meshColors)) {
             piece.setMeshBaseColor(meshName, colorHex);
+        }
+    }
+
+    applyPieceMaterials(piece, meshMaterials) {
+        if (!meshMaterials) return;
+        for (const [meshName, mat] of Object.entries(meshMaterials)) {
+            if (mat.metallic !== undefined) piece.setMeshMetallic(meshName, mat.metallic);
+            if (mat.roughness !== undefined) piece.setMeshRoughness(meshName, mat.roughness);
         }
     }
 

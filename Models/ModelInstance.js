@@ -25,6 +25,7 @@ export class ModelInstance extends Object3D {
         this.layer = layer;
 
         this.rotationMatrix = this._resolveRotation(rotation);
+        this.modifiers = this._mergeModifiers(asset.modifiers ?? []);
 
         this.meshes = [];
 
@@ -60,6 +61,16 @@ export class ModelInstance extends Object3D {
 
     }
 
+    _mergeModifiers(modifierList) {
+        const merged = {};
+        for (const mod of modifierList) {
+            if (!merged[mod.type]) merged[mod.type] = { pos: {}, rot: {} };
+            Object.assign(merged[mod.type].pos, mod.pos ?? {});
+            Object.assign(merged[mod.type].rot, mod.rot ?? {});
+        }
+        return merged;
+    }
+
     getMeshByName(name) {
         return this.meshes.find(m => m.name === name);
     }
@@ -83,6 +94,31 @@ export class ModelInstance extends Object3D {
         ]);
 
         entry.mesh.shader.resources.uMaterial.uniforms.uBaseColor.set(rgba);
+    }
+
+    setMeshMetallic(name, value) {
+        const entry = this.getMeshByName(name);
+        if (!entry) {
+            console.warn(`ModelInstance: no mesh named "${name}" on asset "${this.asset.name}"`);
+            return;
+        }
+        const clamped = Math.max(0, Math.min(1, value));
+        entry.mesh.shader.resources.uMaterial.uniforms.uMetallic = clamped;
+    }
+
+    setMeshRoughness(name, value) {
+        const entry = this.getMeshByName(name);
+        if (!entry) {
+            console.warn(`ModelInstance: no mesh named "${name}" on asset "${this.asset.name}"`);
+            return;
+        }
+        const clamped = Math.max(0, Math.min(1, value));
+        entry.mesh.shader.resources.uMaterial.uniforms.uRoughness = clamped;
+    }
+
+    setMeshMaterial(name, { metallic, roughness } = {}) {
+        if (metallic !== undefined) this.setMeshMetallic(name, metallic);
+        if (roughness !== undefined) this.setMeshRoughness(name, roughness);
     }
 
     // Accepts either a 9-element matrix (array/Float32Array) or an Euler

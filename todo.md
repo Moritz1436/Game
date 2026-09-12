@@ -36,7 +36,9 @@ DriveScene:
     - meshes runterkriegen!! tris sind egal und dann light_sources (tris bis 10mio ok)
         main problem are objects: 35 (objects per side) * 12 (chunks per side) * 2 (sides) = 840 Meshes!!
         solution: 
-            - tree-groups with each just 1 mesh instead of solo trees
+            - 5 tree_clusters with 4-6 trees @ lod med and high
+            - random rotate and scale clusters
+            - remove lod low
             - objectperchunk in der ferne auch weniger
 
     LATER:
@@ -46,5 +48,9 @@ DriveScene:
 
 GarageScene:
     - Environment world walls
-    - many more car parts
+    - many more car partsr
     - brakes turn as well on tires ...
+    - lightsource in car_lights
+    - car_lights as part
+    - front of car as part
+    - exaust

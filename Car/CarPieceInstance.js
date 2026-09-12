@@ -2,6 +2,9 @@ import { ModelInstance } from "../Models/ModelInstance.js";
 import { eulerToMat3, mat3Mul, mirrorZ, mat3TransformVec3, IDENTITY_MAT3 } from "../World3D/Utils/Mat3Utils.js";
 import { transformBounds, mergeBounds } from "../World3D/Utils/BoundsUtils.js";
 
+const DEG2RAD = Math.PI / 180;
+const AXES = ['x', 'y', 'z'];
+
 // One node in a car's part tree (base -> tire -> ... -> anything attached
 // to that). Transform is stored LOCAL to the parent (root piece: local IS
 // world). World pos/rotation/scale are only recomputed when something
@@ -11,28 +14,30 @@ import { transformBounds, mergeBounds } from "../World3D/Utils/BoundsUtils.js";
 // ModelInstance.
 export class CarPieceInstance extends ModelInstance {
 
-    ///@param asset - CarPieceAsset
-    ///@param layer - render layer/container (passed straight to ModelInstance)
-    ///@param localPos3d - position relative to parent (root: relative to car origin)
-    ///@param localRot3d - rotation relative to parent, Euler radians
-    ///@param localScale - scale relative to parent's effective scale (usually 1 for attached parts)
-    ///@param mirrored - if true, the piece is mirrored along the X axis (used for left/right tires)
     constructor(asset, layer, localPos3d = { x: 0, y: 0, z: 0 }, localRot3d = { x: 0, y: 0, z: 0 }, localScale = 1, mirrored = false) {
         const baseLocalRotMat = eulerToMat3(localRot3d);
         const localRotMat = mirrored ? mat3Mul(baseLocalRotMat, mirrorZ()) : baseLocalRotMat;
         super(asset, layer, { ...localPos3d }, localScale, localRotMat);
 
+        this.mirrored = mirrored;
         this.localPos3d = { ...localPos3d };
         this.localRotationMatrix = localRotMat;
         this.localScale = localScale;
 
+        this.baseLocalPos3d = { ...localPos3d };
+        this.baseLocalRotRad = { ...localRot3d };
+        //external rotation
+        this.extraRotationMatrix = IDENTITY_MAT3;
+
+        this.modifierValues = {
+            pos: { x: 0, y: 0, z: 0 },
+            rot: { x: 0, y: 0, z: 0 },
+        };
+
         this.parent = null;
-        this.children = new Map(); // socketName -> CarPieceInstance
+        this.children = new Map();
     }
 
-    // Attach a child into one of this piece's sockets. Fails (with a
-    // console warning) if the socket doesn't exist, the piece's type
-    // doesn't match what the socket accepts, or the socket is occupied.
     attachChild(socketName, piece) {
         const socket = this.asset.sockets.find(s => s.name === socketName);
         if (!socket) {
@@ -49,7 +54,16 @@ export class CarPieceInstance extends ModelInstance {
         }
 
         piece.parent = this;
-        piece.localPos3d = { ...socket.pos };
+
+        piece.baseLocalPos3d = { ...socket.pos };
+        const socketRotDeg = socket.rot ?? { x: 0, y: 0, z: 0 };
+        piece.baseLocalRotRad = {
+            x: socketRotDeg.x * DEG2RAD,
+            y: socketRotDeg.y * DEG2RAD,
+            z: socketRotDeg.z * DEG2RAD,
+        };
+
+        piece._recomputeLocalTransform();
         this.children.set(socketName, piece);
 
         piece.updateWorldTransform();
@@ -59,14 +73,10 @@ export class CarPieceInstance extends ModelInstance {
     removeChild(socketName) {
         const child = this.children.get(socketName);
         if (!child) return;
-
         child.destroy();
         this.children.delete(socketName);
     }
 
-    // Recompute this piece's world transform from the parent's current world
-    // transform + this piece's local offset, then cascade to children.
-    // Call after attaching/moving/rotating - not per frame.
     updateWorldTransform() {
         if (this.parent) {
             const parentRotMat = this.parent.rotationMatrix ?? IDENTITY_MAT3;
@@ -83,14 +93,11 @@ export class CarPieceInstance extends ModelInstance {
             this.rotationMatrix = mat3Mul(parentRotMat, this.localRotationMatrix);
             this.scale = parentScale * this.localScale;
         } else {
-            // root piece: local IS world
             this.pos3d = { ...this.localPos3d };
             this.rotationMatrix = this.localRotationMatrix;
             this.scale = this.localScale;
         }
 
-        // Push the freshly computed world transform to whatever your base
-        // ModelInstance/render system expects.
         this.setPosition(this.pos3d);
         this.setRotationMatrix(this.rotationMatrix);
         this.setScale(this.scale);
@@ -99,31 +106,103 @@ export class CarPieceInstance extends ModelInstance {
             child.updateWorldTransform();
         }
     }
-    
-    // Change this piece's local rotation (e.g. a spinning wheel, a steered
-    // front axle) and re-cascade immediately.
+
     setLocalRotation(localRot3d) {
-        this.localRotationMatrix = eulerToMat3(localRot3d);
+        this.baseLocalRotRad = { ...localRot3d };
+        this._recomputeLocalTransform();
         this.updateWorldTransform();
     }
 
     setLocalPosition(localPos3d) {
-        this.localPos3d = { ...localPos3d };
+        this.baseLocalPos3d = { ...localPos3d };
+        this._recomputeLocalTransform();
         this.updateWorldTransform();
     }
 
-    // World-space AABB of this piece plus all children
-    getWorldAABB() {
-        let bounds = transformBounds(this.asset.bounds, this.pos3d, this.scale, this.rotationMatrix);
-        for (const child of this.children.values()) {
-            bounds = mergeBounds(bounds, child.getWorldAABB());
+    _recomputeLocalTransform() {
+        const posOffset = this.modifierValues.pos;
+        this.localPos3d = {
+            x: this.baseLocalPos3d.x + posOffset.x,
+            y: this.baseLocalPos3d.y + posOffset.y,
+            z: this.baseLocalPos3d.z + posOffset.z,
+        };
+
+        const rotOffset = this.modifierValues.rot;
+        const combinedRotRad = {
+            x: this.baseLocalRotRad.x + rotOffset.x * DEG2RAD,
+            y: this.baseLocalRotRad.y + rotOffset.y * DEG2RAD,
+            z: this.baseLocalRotRad.z + rotOffset.z * DEG2RAD,
+        };
+
+        const baseMat = eulerToMat3(combinedRotRad);
+        const mirroredMat = this.mirrored ? mat3Mul(baseMat, mirrorZ()) : baseMat;
+        this.localRotationMatrix = mat3Mul(mirroredMat, this.extraRotationMatrix);
+    }
+
+    getModifierRange(group, axis) {
+        const typeMods = this.parent?.modifiers?.[this.asset.type];
+        return typeMods?.[group]?.[axis] ?? null;
+    }
+
+    _mirrorModifierValue(group, axis, value) {
+        if (!this.mirrored) return value;
+
+        if (group === "rot") {
+            return axis === "z" ? value : -value;
         }
 
+        if (group === "pos") {
+            return axis === "z" ? -value : value;
+        }
+
+        return value;
+    }
+
+    setModifierValue(group, axis, value) {
+        const range = this.getModifierRange(group, axis);
+        let clamped = 0;
+        if (range) {
+            const lo = Math.min(range.min, range.max);
+            const hi = Math.max(range.min, range.max);
+            clamped = Math.min(Math.max(value, lo), hi);
+        }
+
+        // Bei gespiegelten Pieces das Vorzeichen für die betroffene(n) Achse(n) umkehren
+        const effective = this.mirrored ? this._mirrorModifierValue(group, axis, clamped) : clamped;
+
+        this.modifierValues[group][axis] = effective;
+        this._recomputeLocalTransform();
+        this.updateWorldTransform();
+
+        return clamped;
+    }
+
+    exportModifierValues() {
+        const result = { pos: {}, rot: {} };
+        for (const group of ['pos', 'rot']) {
+            for (const axis of AXES) {
+                const v = this.modifierValues[group][axis];
+                if (v) result[group][axis] = v;
+            }
+        }
+        return result;
+    }
+
+    importModifierValues(values = {}) {
+        for (const group of ['pos', 'rot']) {
+            const axes = values[group] ?? {};
+            for (const axis of AXES) {
+                if (axes[axis] !== undefined) this.setModifierValue(group, axis, axes[axis]);
+            }
+        }
+    }
+
+    getWorldAABB() {
+        let bounds = transformBounds(this.asset.bounds, this.pos3d, this.scale, this.rotationMatrix);
+        for (const child of this.children.values()) bounds = mergeBounds(bounds, child.getWorldAABB());
         return bounds;
     }
 
-    // Local-space AABB (relative to root's origin, un-rotated), built the same
-    // way transformBounds/updateWorldTransform chain position+scale but never applies rotation
     getLocalAABB(originPos = { x: 0, y: 0, z: 0 }, parentScale = 1) {
         const scale = parentScale * this.localScale;
         const pos = this.parent
@@ -135,11 +214,28 @@ export class CarPieceInstance extends ModelInstance {
             : originPos;
 
         let bounds = transformBounds(this.asset.bounds, pos, scale);
-        for (const child of this.children.values()) {
-            bounds = mergeBounds(bounds, child.getLocalAABB(pos, scale));
-        }
-
+        for (const child of this.children.values()) bounds = mergeBounds(bounds, child.getLocalAABB(pos, scale));
         return bounds;
+    }
+
+    // Multipliziert eine zusätzliche Rotation auf die bestehende externe Rotation drauf
+    // (z.B. einmaliges 90°-Drehen beim Spawnen). Bleibt unabhängig von Socket-Rotation/Modifiern erhalten.
+    rotate(rotMat) {
+        this.extraRotationMatrix = mat3Mul(this.extraRotationMatrix, rotMat);
+        this._recomputeLocalTransform();
+        this.updateWorldTransform();
+    }
+
+    // Setzt die externe Rotation absolut (überschreibt vorherige externe Rotation,
+    // lässt Socket-Rotation/Modifier-Werte aber unangetastet).
+    setExternalRotation(rotMat) {
+        this.extraRotationMatrix = [...rotMat];
+        this._recomputeLocalTransform();
+        this.updateWorldTransform();
+    }
+
+    getExternalRotation() {
+        return [...this.extraRotationMatrix];
     }
 
     destroy() {

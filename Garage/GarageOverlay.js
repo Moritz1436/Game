@@ -13,6 +13,12 @@ function formatPropValue(v) {
     return Number.isInteger(v) ? v.toString() : v.toFixed(1);
 }
 
+function formatSliderValue(v) {
+    return Number.isInteger(v) ? v.toString() : v.toFixed(2);
+}
+
+const MODIFIER_CHANGE_COST = 500;
+
 // ---------------------------------------------------------------------------
 // Erzeugt eine klickbare Box (ohne dauerhafte Selektion, nur für Kategorien)
 // ---------------------------------------------------------------------------
@@ -183,16 +189,31 @@ export class GarageOverlay extends PIXI.Container {
         const wrenchTexture = PIXI.Sprite.from("assets/wrench.png");
         const colorPickerTexture = PIXI.Sprite.from("assets/colorpicker.png");
         const upgradesTexture = PIXI.Sprite.from("assets/upgrades.png");
+        const modifiersTexture = PIXI.Sprite.from("assets/modifiers.png");
 
         this.wrenchButton = this._createModeButton(wrenchTexture, () => this._setMode("parts"));
         this.colorButton = this._createModeButton(colorPickerTexture, () => this._setMode("color"));
         this.upgradesButton = this._createModeButton(upgradesTexture, () => this._setMode("upgrades"));
+        this.modifiersButton = this._createModeButton(modifiersTexture, () => this._setMode("modifiers"));
 
         this.modeButtonsContainer.addChild(this.wrenchButton);
         this.modeButtonsContainer.addChild(this.colorButton);
         this.modeButtonsContainer.addChild(this.upgradesButton);
+        this.modeButtonsContainer.addChild(this.modifiersButton);
 
         this._refreshModeButtonHighlight();
+    }
+
+    _refreshModeButtonHighlight() {
+        const size = this._modeBtnSize ?? 40;
+        for (const [btn, active] of [
+            [this.wrenchButton, this.mode === "parts"],
+            [this.colorButton, this.mode === "color"],
+            [this.upgradesButton, this.mode === "upgrades"],
+            [this.modifiersButton, this.mode === "modifiers"],
+        ]) {
+            drawBox(btn._bg, size, size, active ? COLORS.boxBgSelected : COLORS.boxBg, COLORS.boxBorder, Math.max(2, size * 0.06));
+        }
     }
 
     _createModeButton(texture, onClick) {
@@ -223,23 +244,16 @@ export class GarageOverlay extends PIXI.Container {
         this.layout();
     }
 
-    _refreshModeButtonHighlight() {
-        const size = this._modeBtnSize ?? 40;
-        for (const [btn, active] of [
-            [this.wrenchButton, this.mode === "parts"],
-            [this.colorButton, this.mode === "color"],
-            [this.upgradesButton, this.mode === "upgrades"],
-        ]) {
-            drawBox(btn._bg, size, size, active ? COLORS.boxBgSelected : COLORS.boxBg, COLORS.boxBorder, Math.max(2, size * 0.06));
-        }
-    }
-
     // -----------------------------------------------------------------
     // Klick auf Kategorie: verzweigt je nach Modus
     // -----------------------------------------------------------------
     _onBottomItemClick(type) {
         if (this.mode === "color") {
             this._onColorCategoryClick(type);
+            return;
+        }
+        if (this.mode === "modifiers") {
+            this._onModifierCategoryClick(type);
             return;
         }
 
@@ -266,10 +280,105 @@ export class GarageOverlay extends PIXI.Container {
         this.layout();
     }
 
+    _updateModifiersOptionsRow(type) {
+        const modifierDef = this.car.rootPiece.modifiers?.[type];
+        const items = [];
+
+        if (modifierDef) {
+            for (const group of ["pos", "rot"]) {
+                const axesRanges = modifierDef[group] ?? {};
+                for (const axis of ["x", "y", "z"]) {
+                    const range = axesRanges[axis];
+                    if (!range) continue;
+
+                    const label = `${group.toUpperCase()} ${axis.toUpperCase()}`;
+                    const currentValue = this._pendingModifierValues[group]?.[axis] ?? 0;
+
+                    const box = this._createModifierSliderBox(this._boxSize, label, range.min, range.max, currentValue, (value) => {
+                        this._pendingModifierValues[group] ??= {};
+                        this._pendingModifierValues[group][axis] = value;
+
+                        for (const piece of this.car.getPiecesByType(type)) {
+                            piece.setModifierValue(group, axis, value);
+                        }
+                    });
+                    items.push(box);
+                }
+            }
+        }
+
+        this.optionsScroller.setItems(items, this._gap, this._boxSize);
+    }
+
+    _createModifierSliderBox(size, label, min, max, value, onChange) {
+        const c = new PIXI.Container();
+        c.width = size;
+        c.height = size;
+
+        const bg = new PIXI.Graphics();
+        c.addChild(bg);
+        drawBox(bg, size, size, COLORS.boxBg, COLORS.boxBorder, Math.max(2, size * 0.03));
+
+        const txt = pixelText(label, size * 0.14, COLORS.textLight);
+        txt.anchor.set(0.5, 0);
+        txt.position.set(size / 2, size * 0.08);
+        c.addChild(txt);
+
+        const valueText = pixelText(formatSliderValue(value), size * 0.16, COLORS.gold);
+        valueText.anchor.set(0.5, 0);
+        valueText.position.set(size / 2, size * 0.26);
+        c.addChild(valueText);
+
+        const trackY = size * 0.62;
+        const trackW = size * 0.76;
+        const trackX0 = (size - trackW) / 2;
+
+        const track = new PIXI.Graphics();
+        track.rect(trackX0, trackY - 2, trackW, 4).fill(COLORS.boxBorder);
+        c.addChild(track);
+
+        const handleR = size * 0.09;
+        const handleHitR = handleR * 1.6;
+        const handle = new PIXI.Graphics();
+        handle.circle(0, 0, handleR).fill(COLORS.gold).stroke({ width: 1, color: COLORS.panelBorder });
+        handle.eventMode = "static";
+        handle.cursor = "pointer";
+        handle.hitArea = new PIXI.Circle(0, 0, handleHitR);
+        c.addChild(handle);
+
+        const valueToX = (v) => trackX0 + ((v - min) / (max - min || 1)) * trackW;
+        const xToValue = (x) => min + Math.min(1, Math.max(0, (x - trackX0) / trackW)) * (max - min);
+
+        handle.position.set(valueToX(value), trackY);
+
+        let dragging = false;
+
+        handle.on("pointerdown", (e) => {
+            e.stopPropagation(); // verhindert, dass der Scroller den Drag als Pan interpretiert
+            dragging = true;
+        });
+
+        handle.on("globalpointermove", (e) => {
+            if (!dragging) return;
+            const local = c.toLocal(e.global);
+            const newValue = xToValue(local.x);
+            handle.position.set(valueToX(newValue), trackY);
+            valueText.text = formatSliderValue(newValue);
+            onChange && onChange(newValue);
+        });
+
+        const endDrag = () => { dragging = false; };
+        handle.on("pointerup", endDrag);
+        handle.on("pointerupoutside", endDrag);
+
+        return c;
+    }
+
     _closeOptions() {
         this.selectedType = null;
         this.optionsContainer.visible = false;
         this._closeColorPicker();
+        this._closeModifierOptions();
         this.layout();
     }
 
@@ -364,7 +473,20 @@ export class GarageOverlay extends PIXI.Container {
     // Farbwähler öffnen/schließen
     // -----------------------------------------------------------------
     _openColorPickerFor(type, meshName, baseAsset, currentHex, boxRef) {
-        this.colorPickerTarget = { type, meshName, baseAsset, boxRef, originalHex: currentHex, previewHex: currentHex };
+        const meshDef = this.assetManager.getAssetByName(
+            type === "base" ? this.carConfigState.data.base : this.carConfigState.getPartForType(type, baseAsset)
+        )?.meshes.find(m => m.name === meshName);
+
+        const savedMaterial = this.carConfigState.getMeshMaterial(type, meshName);
+        const startMetallic = savedMaterial?.metallic ?? meshDef?.metallic ?? 1.0;
+        const startRoughness = savedMaterial?.roughness ?? meshDef?.roughness ?? 1.0;
+
+        this.colorPickerTarget = {
+            type, meshName, baseAsset, boxRef,
+            originalHex: currentHex, previewHex: currentHex,
+            originalMetallic: startMetallic, previewMetallic: startMetallic,
+            originalRoughness: startRoughness, previewRoughness: startRoughness,
+        };
 
         if (!this.colorPicker) {
             this.colorPicker = new HSVColorPicker(
@@ -378,6 +500,18 @@ export class GarageOverlay extends PIXI.Container {
                         piece.setMeshBaseColor(t.meshName, hex);
                     }
                     t.boxRef._updateSwatch(hex);
+                },
+                (metallic, roughness) => {
+                    console.log("Material changed:", metallic, roughness);
+                    const t = this.colorPickerTarget;
+                    if (!t) return;
+                    t.previewMetallic = metallic;
+                    t.previewRoughness = roughness;
+                    const pieces = t.type === "base" ? [this.car.rootPiece] : this.car.getPiecesByType(t.type);
+                    for (const piece of pieces) {
+                        piece.setMeshMetallic(t.meshName, metallic);
+                        piece.setMeshRoughness(t.meshName, roughness);
+                    }
                 }
             );
             this.colorPickerPanel.addChild(this.colorPicker);
@@ -385,6 +519,7 @@ export class GarageOverlay extends PIXI.Container {
 
         const savedHex = this.carConfigState.getMeshColor(type, meshName) ?? currentHex;
         this.colorPicker.setColorHex(savedHex);
+        this.colorPicker.setMetallicRoughness(startMetallic, startRoughness); // NEU
 
         this.colorPickerOutside.visible = true;
         this.colorPickerOutside.clear();
@@ -402,20 +537,37 @@ export class GarageOverlay extends PIXI.Container {
     _closeColorPicker() {
         const t = this.colorPickerTarget;
 
-        if (t && t.previewHex !== t.originalHex) {
-            GAMESTATE.spendMoney(COLOR_CHANGE_COST, false, this.app, (success) => {
-                const pieces = t.type === "base" ? [this.car.rootPiece] : this.car.getPiecesByType(t.type);
+        if (t) {
+            const colorChanged = t.previewHex !== t.originalHex;
+            const materialChanged = t.previewMetallic !== t.originalMetallic || t.previewRoughness !== t.originalRoughness;
 
-                if (success) {
-                    this.carConfigState.setMeshColor(t.type, t.meshName, t.previewHex);
-                    t.boxRef._updateSwatch(t.previewHex);
-                } else {
-                    // Kauf fehlgeschlagen -> Preview zurücksetzen
-                    for (const piece of pieces) piece.setMeshBaseColor(t.meshName, t.originalHex);
-                    t.boxRef._updateSwatch(t.originalHex);
-                    this._createNoMoneyScreen();
-                }
-            });
+            if (colorChanged || materialChanged) {
+                GAMESTATE.spendMoney(COLOR_CHANGE_COST, false, this.app, (success) => {
+                    const pieces = t.type === "base" ? [this.car.rootPiece] : this.car.getPiecesByType(t.type);
+
+                    if (success) {
+                        if (colorChanged) {
+                            this.carConfigState.setMeshColor(t.type, t.meshName, t.previewHex);
+                            t.boxRef._updateSwatch(t.previewHex);
+                        }
+                        if (materialChanged) {
+                            this.carConfigState.setMeshMaterial(t.type, t.meshName, {
+                                metallic: t.previewMetallic,
+                                roughness: t.previewRoughness,
+                            });
+                        }
+                    } else {
+                        // Kauf fehlgeschlagen -> ALLES zuruecksetzen (Farbe UND Material)
+                        for (const piece of pieces) {
+                            piece.setMeshBaseColor(t.meshName, t.originalHex);
+                            piece.setMeshMetallic(t.meshName, t.originalMetallic);
+                            piece.setMeshRoughness(t.meshName, t.originalRoughness);
+                        }
+                        t.boxRef._updateSwatch(t.originalHex);
+                        this._createNoMoneyScreen();
+                    }
+                });
+            }
         }
 
         this.colorPickerTarget = null;
@@ -465,6 +617,7 @@ export class GarageOverlay extends PIXI.Container {
         this.exitButton.on("pointerover", () => this._drawExitButton(true));
         this.exitButton.on("pointerout", () => this._drawExitButton(false));
         this.exitButton.on("pointerdown", () => {
+            this._closeOptions();
             this.callbacks.onExit && this.callbacks.onExit(this.carConfigState);
         });
     }
@@ -500,6 +653,10 @@ export class GarageOverlay extends PIXI.Container {
     _updateBottomRow() {
         if (this.mode === "upgrades") {
             this._updateUpgradesRow();
+            return;
+        }
+        if (this.mode === "modifiers") {
+            this._updateModifiersBottomRow();
             return;
         }
 
@@ -544,6 +701,40 @@ export class GarageOverlay extends PIXI.Container {
         } else if (this.selectedType === "base") {
             // Base existiert immer, also Options-Reihe aktualisieren
             this._updateOptionsRow("base");
+        }
+    }
+
+    _updateModifiersBottomRow() {
+        const baseName = this.carConfigState.data.base;
+        const baseAsset = this.assetManager.getAssetByName(baseName);
+        this.currentBaseAsset = baseAsset;
+
+        const items = [];
+
+        if (baseAsset && baseAsset.sockets) {
+            const equippedTypes = new Set();
+            for (const socket of baseAsset.sockets) {
+                if (this.carConfigState.data.parts[socket.name]) equippedTypes.add(socket.type);
+            }
+
+            for (const type of equippedTypes) {
+                if (!this.car.rootPiece.modifiers?.[type]) continue; // kein Modifier definiert -> nicht anzeigen
+
+                const box = createCategoryBox(this._boxSize, type.toUpperCase(), () => this._onBottomItemClick(type));
+                box._type = type;
+                items.push(box);
+            }
+        }
+
+        this.bottomScroller.setItems(items, this._gap, this._boxSize);
+
+        if (this.selectedType) {
+            const stillEquipped = items.some(i => i._type === this.selectedType);
+            if (!stillEquipped) {
+                this._closeOptions();
+            } else {
+                this._updateModifiersOptionsRow(this.selectedType);
+            }
         }
     }
 
@@ -668,12 +859,6 @@ export class GarageOverlay extends PIXI.Container {
         return c;
     }
 
-    _closeOptions() {
-        this.selectedType = null;
-        this.optionsContainer.visible = false;
-        this.layout();
-    }
-
     // -----------------------------------------------------------------
     // Options‑Reihe für einen bestimmten Typ füllen
     // -----------------------------------------------------------------
@@ -716,6 +901,65 @@ export class GarageOverlay extends PIXI.Container {
         }
 
         this.optionsScroller.setItems(items, this._gap, this._boxSize);
+    }
+
+    _onModifierCategoryClick(type) {
+        if (this.selectedType === type && this.optionsContainer.visible) {
+            this._closeOptions();
+            return;
+        }
+        this._closeModifierOptions();
+        this.selectedType = type;
+        this._openModifierOptions(type);
+        this.optionsContainer.visible = true;
+        this._closeColorPicker();
+        this.layout();
+    }
+
+    _openModifierOptions(type) {
+        const original = structuredClone(this.carConfigState.getModifierValues(type) ?? { pos: {}, rot: {} });
+        this._modifierEditTarget = { type, original };
+        this._pendingModifierValues = structuredClone(original);
+        this._updateModifiersOptionsRow(type);
+    }
+
+    _countChangedModifiers(pending, original) {
+        let count = 0;
+        for (const group of ["pos", "rot"]) {
+            const pendingAxes = pending?.[group] ?? {};
+            const originalAxes = original?.[group] ?? {};
+            const axes = new Set([...Object.keys(pendingAxes), ...Object.keys(originalAxes)]);
+            for (const axis of axes) {
+                const pv = pendingAxes[axis] ?? 0;
+                const ov = originalAxes[axis] ?? 0;
+                if (pv !== ov) count++;
+            }
+        }
+        return count;
+    }
+
+    _closeModifierOptions() {
+        const target = this._modifierEditTarget;
+        if (!target) return;
+
+        const pending = this._pendingModifierValues;
+        const changedCount = this._countChangedModifiers(pending, target.original);
+
+        if (changedCount > 0) {
+            const totalCost = changedCount * MODIFIER_CHANGE_COST;
+            GAMESTATE.spendMoney(totalCost, false, this.app, (success) => {
+                const pieces = this.car.getPiecesByType(target.type);
+                if (success) {
+                    this.carConfigState.setModifierValues(target.type, pending);
+                } else {
+                    for (const piece of pieces) piece.importModifierValues(target.original);
+                    this._createNoMoneyScreen();
+                }
+            });
+        }
+
+        this._modifierEditTarget = null;
+        this._pendingModifierValues = null;
     }
 
     _createNoMoneyScreen() {
@@ -819,7 +1063,8 @@ export class GarageOverlay extends PIXI.Container {
         // Socket‑Teil setzen (oder entfernen bei "NONE")
         const pieceName = asset ? asset.pieceName : null;
         this.carConfigState.setPartsForType(type, pieceName, baseAsset);
-        this.car.replacePart(type, pieceName);
+        const modifierValues = this.carConfigState.getModifierValues(type);
+        this.car.replacePart(type, pieceName, modifierValues);
 
         this._updateOptionsRow(type);
         this.layout();
@@ -877,18 +1122,19 @@ export class GarageOverlay extends PIXI.Container {
         // ---- Mode-Buttons (links) ----
         this._modeBtnSize = h * 0.07;
         this._refreshModeButtonHighlight();
-        for (const btn of [this.wrenchButton, this.colorButton, this.upgradesButton]) {
+        for (const btn of [this.wrenchButton, this.colorButton, this.upgradesButton, this.modifiersButton]) {
             btn._sprite.width = this._modeBtnSize * 0.6;
             btn._sprite.height = this._modeBtnSize * 0.6;
             btn._sprite.position.set(this._modeBtnSize / 2, this._modeBtnSize / 2);
         }
 
         const btnGap = margin * 0.5;
-        const totalBtnH = this._modeBtnSize * 3 + btnGap * 2;
+        const totalBtnH = this._modeBtnSize * 4 + btnGap * 3;
         const startY = h * 0.5 - totalBtnH / 2;
         this.wrenchButton.position.set(margin, startY);
         this.colorButton.position.set(margin, startY + this._modeBtnSize + btnGap);
         this.upgradesButton.position.set(margin, startY + (this._modeBtnSize + btnGap) * 2);
+        this.modifiersButton.position.set(margin, startY + (this._modeBtnSize + btnGap) * 3);
 
         // ---- Untere Reihe ----
         const bottomY = h - rowHeight - margin;
@@ -911,9 +1157,9 @@ export class GarageOverlay extends PIXI.Container {
 
         // ---- Color-Picker-Panel (über der Mesh-Reihe) ----
         if (this.colorPickerPanel.visible) {
-            const panelSize = boxSize * 3;
-            const panelW = panelSize + margin;
-            const panelH = panelSize + margin;
+            const panelW = boxSize * 3 + margin;
+            const panelH = (this.colorPicker?._totalHeight ?? boxSize * 3) + margin;
+
             drawBox(this.colorPickerBg, panelW, panelH, COLORS.panelBg, COLORS.panelBorder, Math.max(2, h * 0.004));
             this.colorPickerPanel.position.set(margin, optY - panelH - margin * 0.5);
             this.colorPicker.position.set(margin * 0.5, margin * 0.5);

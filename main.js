@@ -113,6 +113,7 @@ async function boot(app) {
         "assets/colorpicker.png",
         "assets/wrench.png",
         "assets/upgrades.png",
+        "assets/modifiers.png",
     ];
     await loadingScreen.run(
         imgs.map(img => async () => {

@@ -293,10 +293,10 @@ export class MountainManager {
         const horizonGlowAlpha = 1 - _smoothstep(0.05, 0.55, Math.abs(sunHeight));
 
         // ---- Himmel ----
-        this.skyDaySprite.x = this.skyNightSprite.x = this.sunsetGlow.x = width * 0.5;
-        this.skyDaySprite.y = this.skyNightSprite.y = horizonY;
-        this.skyDaySprite.width = this.skyNightSprite.width = width * 1.05;
-        this.skyDaySprite.height = this.skyNightSprite.height = horizonY + this.horizonSpriteOffset;
+        this.skyDaySprite.x = this.sunsetGlow.x = width * 0.5;
+        this.skyDaySprite.y = horizonY;
+        this.skyDaySprite.width = width * 1.05;
+        this.skyDaySprite.height = horizonY + this.horizonSpriteOffset;
         this.skyDaySprite.alpha = dayAlpha;
         this.skyNightSprite.alpha = nightAlpha;
 

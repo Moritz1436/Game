@@ -46,19 +46,25 @@ export function hexToRgb(hex) {
 export function clamp01(v) { return Math.max(0, Math.min(1, v)); }
 
 export class HSVColorPicker extends PIXI.Container {
-    constructor(size, onChange) {
+    constructor(size, onChange, onMaterialChange = null) {
         super();
         this.onChange = onChange;
+        this.onMaterialChange = onMaterialChange;
         
         this.hue = 0;
         this.sat = 1;
         this.val = 1;
         
+        //internal 0..1, UI 0..100
+        this.metallic = 0;
+        this.roughness = 1;
+
         this.svSize = size * 0.82;
         this.hueWidth = size * 0.14;
         this.gap = size * 0.05;
 
         this._createRGBInputs();
+        this._createMaterialSliders();
 
         // SV square (canvas-based, redrawn on hue change)
         this.svCanvas = document.createElement("canvas");
@@ -95,6 +101,7 @@ export class HSVColorPicker extends PIXI.Container {
         this._redrawSV();
         this._updateCursors();
         this._updateRGBInputs();
+        this._updateMaterialSliders();
 
         this._setupDrag(this.svSprite, (local) => {
             const x = local.x - this.svSprite.x;
@@ -505,6 +512,179 @@ export class HSVColorPicker extends PIXI.Container {
         this._updateCursors();
         this._updateRGBInputs();
     }
+
+    _createMaterialSliders() {
+        this.materialSliders = {};
+
+        const totalWidth = this.svSize + this.gap + this.hueWidth;
+        const startX = 0;
+
+        // Y-Start direkt unterhalb der RGB-Zeile. RGB-Container.y war
+        // this.svSize + this.svSize*0.04, Feldhoehe war
+        // (this.svSize + this.hueWidth) * 0.075 - dieselbe Referenz hier
+        // wiederverwendet, um konsistent zu bleiben.
+        const rgbFieldHeight = (this.svSize + this.hueWidth) * 0.075;
+        const rgbY = this.svSize + this.svSize * 0.04;
+        let cursorY = rgbY + rgbFieldHeight + this.svSize * 0.06;
+
+        const sliderRowGap = this.svSize * 0.09;
+        const labelHeight = this.svSize * 0.05;
+        const trackHeight = this.svSize * 0.06;
+        const valueBoxWidth = totalWidth * 0.16;
+        const valueBoxGap = totalWidth * 0.03;
+
+        const defs = [
+            { key: "metallic", label: "METALLIC" },
+            { key: "roughness", label: "ROUGHNESS" },
+        ];
+
+        for (const { key, label } of defs) {
+            const row = new PIXI.Container();
+            row.x = startX;
+            row.y = cursorY;
+            this.addChild(row);
+
+            // ---- Label ----
+            const labelText = new PIXI.Text({
+                text: label,
+                style: {
+                    fontSize: Math.max(9, labelHeight * 0.9),
+                    fill: 0xaaaaaa,
+                    fontWeight: "bold",
+                },
+            });
+            labelText.x = 0;
+            labelText.y = 0;
+            row.addChild(labelText);
+
+            const trackY = labelHeight + this.svSize * 0.015;
+
+            // ---- Value-Box (links) ----
+            const valueBox = new PIXI.Container();
+            valueBox.x = 0;
+            valueBox.y = trackY;
+            row.addChild(valueBox);
+
+            const valueBg = new PIXI.Graphics();
+            valueBg
+                .roundRect(0, 0, valueBoxWidth, trackHeight, trackHeight * 0.18)
+                .fill(0x202020)
+                .stroke({ width: Math.max(1, this.svSize * 0.008), color: 0x505050 });
+            valueBox.addChild(valueBg);
+
+            const valueText = new PIXI.Text({
+                text: "0",
+                style: {
+                    fontSize: Math.max(10, trackHeight * 0.5),
+                    fill: 0xffffff,
+                },
+            });
+            valueText.anchor.set(0.5);
+            valueText.x = valueBoxWidth / 2;
+            valueText.y = trackHeight / 2;
+            valueBox.addChild(valueText);
+
+            // ---- Slider-Track (rechts, restliche Breite) ----
+            const trackX = valueBoxWidth + valueBoxGap;
+            const trackWidth = totalWidth - trackX;
+
+            const track = new PIXI.Container();
+            track.x = trackX;
+            track.y = trackY;
+            row.addChild(track);
+
+            const trackBg = new PIXI.Graphics();
+            trackBg
+                .roundRect(0, trackHeight * 0.35, trackWidth, trackHeight * 0.3, trackHeight * 0.15)
+                .fill(0x202020)
+                .stroke({ width: Math.max(1, this.svSize * 0.008), color: 0x505050 });
+            track.addChild(trackBg);
+
+            const trackFill = new PIXI.Graphics();
+            track.addChild(trackFill);
+
+            const handle = new PIXI.Graphics();
+            track.addChild(handle);
+
+            track.eventMode = "static";
+            track.cursor = "pointer";
+            track.hitArea = new PIXI.Rectangle(0, 0, trackWidth, trackHeight);
+
+            this.materialSliders[key] = {
+                row, valueBox, valueBg, valueText,
+                track, trackBg, trackFill, handle,
+                trackWidth, trackHeight,
+            };
+
+            this._setupSliderDrag(track, trackWidth, (t) => {
+                this[key] = clamp01(t);
+                this._updateMaterialSliders();
+                this._emitMaterial();
+            });
+
+            cursorY += labelHeight + this.svSize * 0.015 + trackHeight + sliderRowGap;
+        }
+
+        this._totalHeight = cursorY - sliderRowGap;
+    }
+
+    // Zeichnet Fill + Handle-Position fuer beide Slider anhand von
+    // this.metallic/this.roughness, und aktualisiert den Zahlenwert (0-100,
+    // gerundet) in der Value-Box.
+    _updateMaterialSliders() {
+        if (!this.materialSliders) return;
+
+        for (const key of ["metallic", "roughness"]) {
+            const s = this.materialSliders[key];
+            const t = clamp01(this[key]);
+
+            s.trackFill.clear();
+            if (t > 0) {
+                s.trackFill
+                    .roundRect(0, s.trackHeight * 0.35, s.trackWidth * t, s.trackHeight * 0.3, s.trackHeight * 0.15)
+                    .fill(0x6a8fd1);
+            }
+
+            const handleX = s.trackWidth * t;
+            s.handle.clear();
+            s.handle
+                .circle(handleX, s.trackHeight * 0.5, s.trackHeight * 0.45)
+                .fill(0xffffff)
+                .stroke({ width: 1, color: 0x000000 });
+
+            s.valueText.text = String(Math.round(t * 100));
+        }
+    }
+
+    // Generischer Drag-Handler fuer einen horizontalen Slider-Track -
+    // liefert t (0..1) an den Callback, basierend auf lokaler X-Position
+    // relativ zum Track, geclamped.
+    _setupSliderDrag(track, trackWidth, onChange) {
+        let dragging = false;
+        const update = (e) => {
+            const local = track.toLocal(e.global);
+            const t = clamp01(local.x / trackWidth);
+            onChange(t);
+        };
+        track.on("pointerdown", (e) => { dragging = true; update(e); });
+        track.on("globalpointermove", (e) => { if (dragging) update(e); });
+        track.on("pointerup", () => dragging = false);
+        track.on("pointerupoutside", () => dragging = false);
+    }
+
+    _emitMaterial() {
+        this.onMaterialChange && this.onMaterialChange(this.metallic, this.roughness);
+    }
+
+    // Oeffentlicher Setter, analog zu setColorHex - erlaubt es dem Aufrufer,
+    // die Slider programmatisch auf einen bestehenden Wert zu setzen (z.B.
+    // beim Oeffnen des Pickers fuer ein bereits vorhandenes Material)
+    setMetallicRoughness(metallic, roughness) {
+        this.metallic = clamp01(metallic);
+        this.roughness = clamp01(roughness);
+        this._updateMaterialSliders();
+    }
+
 
     destroy(options) {
         this.svTexture.destroy(true);

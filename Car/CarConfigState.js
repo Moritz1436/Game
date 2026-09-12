@@ -11,17 +11,14 @@ export class CarConfigState {
             base: initialConfig.base,
             parts: { ...(initialConfig.parts ?? {}) },
             colors: structuredClone(initialConfig.colors ?? {}),
+            materials: structuredClone(initialConfig.materials ?? {}),
+            modifierValues: structuredClone(initialConfig.modifierValues ?? {}),
             properties: initialConfig.properties ?? {},
         };
     }
 
     setBase(pieceName) {
         this.data.base = pieceName;
-        // NOTE: existing parts are left as-is. If the new base doesn't have a
-        // matching socket name, CarPieceInstance.attachChild() will simply
-        // warn and skip it on next applyTo() - not a crash, just a silent
-        // drop of incompatible parts. Fine for now; revisit if that's
-        // confusing in practice.
     }
 
     // Sets `pieceName` on every socket of `type` that exists on `baseAsset`.
@@ -58,6 +55,47 @@ export class CarConfigState {
 
     getMeshColor(pieceKey, meshName) {
         return this.data.colors[pieceKey]?.[meshName] ?? null;
+    }
+
+    setMeshMaterial(pieceKey, meshName, { metallic, roughness } = {}) {
+        if (!this.data.materials[pieceKey]) this.data.materials[pieceKey] = {};
+        const existing = this.data.materials[pieceKey][meshName] ?? {};
+        this.data.materials[pieceKey][meshName] = {
+            metallic: metallic !== undefined ? metallic : existing.metallic,
+            roughness: roughness !== undefined ? roughness : existing.roughness,
+        };
+    }
+
+    getMeshMaterial(pieceKey, meshName) {
+        return this.data.materials[pieceKey]?.[meshName] ?? null;
+    }
+
+    getMeshMetallic(pieceKey, meshName) {
+        return this.getMeshMaterial(pieceKey, meshName)?.metallic ?? null;
+    }
+
+    getMeshRoughness(pieceKey, meshName) {
+        return this.getMeshMaterial(pieceKey, meshName)?.roughness ?? null;
+    }
+
+    // group: "pos" | "rot", axis: "x" | "y" | "z"
+    setModifierValue(socketName, group, axis, value) {
+        if (!this.data.modifierValues[socketName]) {
+            this.data.modifierValues[socketName] = { pos: {}, rot: {} };
+        }
+        this.data.modifierValues[socketName][group][axis] = value;
+    }
+
+    getModifierValue(socketName, group, axis) {
+        return this.data.modifierValues[socketName]?.[group]?.[axis] ?? 0;
+    }
+
+    setModifierValues(type, values) {
+        this.data.modifierValues[type] = structuredClone(values);
+    }
+
+    getModifierValues(type) {
+        return this.data.modifierValues[type] ?? null;
     }
 
     exportConfig() {
