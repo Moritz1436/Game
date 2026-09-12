@@ -269,7 +269,7 @@ export class MapScene extends UIScene {
             },
             shop: {
                 text: "INFORMATION\nThe shop is fully stocked. Want to take a look?",
-                openScene: async (app) => await GarageScene.create(app, cityIdx),
+                openScene: (app) => new ShopScene(app),
             },
             quest: {
                 text: "INFORMATION\nThe local quest board is right here. Want to check it out?",

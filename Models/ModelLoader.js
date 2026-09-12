@@ -34,7 +34,7 @@ export class ModelLoader {
     }
 
     static async _loadInternal(path, factory) {
-        const response = await fetch(path);
+        const response = await fetch(import.meta.env.BASE_URL + path);
         if (!response.ok) {
             throw new Error(`ModelLoader: failed to fetch "${path}" (${response.status})`);
         }
