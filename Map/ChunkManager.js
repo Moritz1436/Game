@@ -57,25 +57,33 @@ export class ChunkManager {
         }
     }
 
-    // Wird bei Kamerabewegung aufgerufen - berechnet nur, WAS gebraucht
-    // wird, baut aber nichts direkt (kein synchroner Spike beim Pan)
-    update(cameraX, cameraY) {
+    update(cameraX, cameraY, viewportW = 0, viewportH = 0) {
         const centerCx = Math.floor(cameraX / CHUNK_SIZE);
         const centerCy = Math.floor(cameraY / CHUNK_SIZE);
-        if (centerCx === this._lastCenterCx && centerCy === this._lastCenterCy) return;
+
+        // Wie viele Chunks braucht's mindestens, um den sichtbaren Bereich
+        // (plus den festen loadRadius als Puffer) komplett abzudecken?
+        const halfW = viewportW / 2;
+        const halfH = viewportH / 2;
+        const radiusX = Math.ceil(halfW / CHUNK_SIZE) + this.loadRadius;
+        const radiusY = Math.ceil(halfH / CHUNK_SIZE) + this.loadRadius;
+
+        if (centerCx === this._lastCenterCx && centerCy === this._lastCenterCy
+            && radiusX === this._lastRadiusX && radiusY === this._lastRadiusY) return;
         this._lastCenterCx = centerCx;
         this._lastCenterCy = centerCy;
+        this._lastRadiusX = radiusX;
+        this._lastRadiusY = radiusY;
 
-        const needed = new Map(); // key -> quadrat. Distanz, fuer Prioritaet
-        for (let dy = -this.loadRadius; dy <= this.loadRadius; dy++) {
-            for (let dx = -this.loadRadius; dx <= this.loadRadius; dx++) {
+        const needed = new Map();
+        for (let dy = -radiusY; dy <= radiusY; dy++) {
+            for (let dx = -radiusX; dx <= radiusX; dx++) {
                 const cx = centerCx + dx, cy = centerCy + dy;
                 if (cx < 0 || cy < 0 || cx * CHUNK_SIZE >= FULL_W || cy * CHUNK_SIZE >= FULL_H) continue;
                 needed.set(`${cx},${cy}`, dx * dx + dy * dy);
             }
         }
 
-        // Entladen bleibt sofort - billig (nur Texture/Sprite destroy)
         for (const [key, chunk] of this.activeChunks) {
             if (!needed.has(key)) {
                 chunk.destroy();
@@ -83,8 +91,6 @@ export class ChunkManager {
             }
         }
 
-        // Warteschlange neu aufbauen: nur was weder aktiv noch schon drin ist,
-        // sortiert nach Naehe zum Kamera-Zentrum (naechste zuerst geladen)
         this.pendingKeys = this.pendingKeys.filter(k => needed.has(k) && !this.activeChunks.has(k));
         const alreadyPending = new Set(this.pendingKeys);
         for (const key of needed.keys()) {

@@ -504,16 +504,24 @@ export class Car extends Object3D {
         this.steeringAngle += (this.steeringTarget - this.steeringAngle) * steeringFollow;
 
         const bodyRot = rotationY(-this.steeringAngle);
-        const steeringRot = rotationY(-this.steeringAngle);
 
         const wheelRotation = this.wheelRadius > 0 ? (distanceMoved / this.wheelRadius) : 0;
         const rotWheel = rotationZ(-wheelRotation);
 
         for (const name of this.wheelSockets) {
             this.wheelRotations[name] = mat3Mul(rotWheel, this.wheelRotations[name]);
-            const finalRot = this.frontWheelSockets.has(name)
-                ? mat3Mul(steeringRot, this.wheelRotations[name])
-                : this.wheelRotations[name];
+
+            let finalRot = this.wheelRotations[name];
+
+            if (this.frontWheelSockets.has(name)) {
+                const piece = this._getPieceBySocketName(name);
+                // Y-Rotation kehrt sich bei gespiegelten Pieces um (mirrorZ
+                // spiegelt Z -> Rotationen um X/Y invertieren sich, Z bleibt gleich)
+                const steeringAngleForWheel = piece?.mirrored ? -this.steeringAngle : this.steeringAngle;
+                const steeringRot = rotationY(-steeringAngleForWheel);
+                finalRot = mat3Mul(steeringRot, finalRot);
+            }
+
             this.setRotation(finalRot, name);
         }
 

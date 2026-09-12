@@ -150,13 +150,13 @@ export class ShopScene extends UIScene {
             basic.rewards.push({
                 type: "property",
                 kind: name,
-                label: "New " + name,
+                label: name,
                 weight: Math.round(20 / propertyCount)
             });
             premium.rewards.push({
                 type: "property",
                 kind: name,
-                label: "New " + name,
+                label: name,
                 weight: Math.round(25 / propertyCount)
             });
         }
@@ -533,22 +533,22 @@ export class ShopScene extends UIScene {
         GAMESTATE.updateCarConfig(config);
     }
 
-_drawReelSlots() {
-    const boxW = CRATE_ITEM_W - 10;
-    const boxH = this._reelItemH;
+    _drawReelSlots() {
+        const boxW = CRATE_ITEM_W - 10;
+        const boxH = this._reelItemH;
 
-    for (const slot of this.reelStrip.children) {
-        slot._bg.clear();
-        slot._bg
-            .rect(0, -boxH / 2, boxW, boxH)
-            .fill(COLORS.boxBg)
-            .stroke({ width: 2, color: COLORS.boxBorder });
+        for (const slot of this.reelStrip.children) {
+            slot._bg.clear();
+            slot._bg
+                .rect(0, -boxH / 2, boxW, boxH)
+                .fill(COLORS.boxBg)
+                .stroke({ width: 2, color: COLORS.boxBorder });
 
-        // Label-Anchor ist 0.5/0.5 -> X-Position bei boxW/2 (Boxmitte),
-        // Y-Position bei 0 (da slot.position.y bereits die Slot-Mitte ist)
-        slot._label.position.set(boxW / 2, 0);
+            // Label-Anchor ist 0.5/0.5 -> X-Position bei boxW/2 (Boxmitte),
+            // Y-Position bei 0 (da slot.position.y bereits die Slot-Mitte ist)
+            slot._label.position.set(boxW / 2, 0);
+        }
     }
-}
 
     // -----------------------------------------------------------------
     // Layout
@@ -610,7 +610,7 @@ _drawReelSlots() {
 
         // ---- Reel-Viewport: feste Position, aendert sich NIE zwischen Spin/Result ----
         const viewportW = REEL_VISIBLE_COUNT * CRATE_ITEM_W;
-        this._reelItemH = panelH * 0.14;
+        this._reelItemH = CRATE_ITEM_W - 10;
         const viewportH = this._reelItemH + 20;
         this._reelViewportY = panelH * 0.4; // <- einzige Quelle fuer die Y-Position der Leiste
 

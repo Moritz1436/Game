@@ -84,6 +84,11 @@ export class MapScene extends UIScene {
 
         app.ticker.add(this.update, this);
         this._centerCameraOn(this.cameraX, this.cameraY);
+
+        this._onWindowResize = () => {
+            this._centerCameraOn(this.cameraX, this.cameraY); // erzwingt update() mit neuen Maßen
+        };
+        window.addEventListener('resize', this._onWindowResize);
     }
 
     update(deltaMS) {
@@ -96,8 +101,8 @@ export class MapScene extends UIScene {
 
         GAMESTATE.applyCityFeatureOverrides(this.macro.world.cities);
 
-        this.chunkManager = new ChunkManager(this.chunkLayer, this.vegetationLayer, this.macro, 2);
-        this.chunkManager.update(this.cameraX, this.cameraY);
+        this.chunkManager = new ChunkManager(this.chunkLayer, this.vegetationLayer, this.macro, 0);
+        this.chunkManager.update(this.cameraX, this.cameraY, this.app.screen.width, this.app.screen.height);
 
         for (let i = 0; i < this.macro.world.cities.length; i++) {
             const city = this.macro.world.cities[i];
@@ -174,12 +179,9 @@ export class MapScene extends UIScene {
     _centerCameraOn(worldX, worldY) {
         this.cameraX = Math.max(0, Math.min(FULL_W, worldX));
         this.cameraY = Math.max(0, Math.min(FULL_H, worldY));
-        // Ganzzahlig runden - sonst rendern benachbarte Chunk-Sprites bei
-        // unterschiedlichen Subpixel-Positionen, was je nach Filtering
-        // feine Naehte zwischen Chunks erzeugen kann.
         this.uiSceneWrapper.x = Math.round(this.app.screen.width / 2 - this.cameraX);
         this.uiSceneWrapper.y = Math.round(this.app.screen.height / 2 - this.cameraY);
-        this.chunkManager.update(this.cameraX, this.cameraY);
+        this.chunkManager.update(this.cameraX, this.cameraY, this.app.screen.width, this.app.screen.height);
     }
 
     _onMarkerClick(city) {
@@ -336,6 +338,8 @@ export class MapScene extends UIScene {
         if (this._onWindowPointerUp) {
             window.removeEventListener('pointerup', this._onWindowPointerUp);
         }
+
+        window.removeEventListener('resize', this._onWindowResize);
 
         this.uiSceneWrapper.destroy({ children: true });
     }
