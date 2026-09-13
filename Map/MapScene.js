@@ -88,7 +88,7 @@ export class MapScene extends UIScene {
         this._onWindowResize = () => {
             this._centerCameraOn(this.cameraX, this.cameraY); // erzwingt update() mit neuen Maßen
         };
-        window.addEventListener('resize', this._onWindowResize);
+        this.app.renderer.on('resize', this._onWindowResize);
     }
 
     update(deltaMS) {
@@ -339,7 +339,7 @@ export class MapScene extends UIScene {
             window.removeEventListener('pointerup', this._onWindowPointerUp);
         }
 
-        window.removeEventListener('resize', this._onWindowResize);
+        this.app.renderer.off('resize', this._onWindowResize);
 
         this.uiSceneWrapper.destroy({ children: true });
     }

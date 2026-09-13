@@ -2,15 +2,16 @@
 
 MapScene:
     - more bioms (more forest types, ice, jungle) + specific things like trees, flowers
+    - improve loading speed
+    - something that tells you that a gear is a workshop
 
 Rendering:
-    - maybe get some kind of lightsource so car_lights can shine a little (kills performance, especially in DriveScene, optimize objects, tris and meshes first)
+    - add light to the ground and road (use lit Shader)
 
 HTML:
-    - might go to fullscreen idk
     - save and load settings
     - profile
-    - open/close dev-tools doesnt count as resize? 
+    - insane loading times for models (only load used pieces for cars and preload everything at the start??)
 
 RaceScene -> invest and then money making:
     - todo
@@ -30,8 +31,9 @@ GasStationScene -> viewing other peoples car (online)
     - todo
 
 DriveScene:
+    -exaust getting red at boost
     - Car spawning, not via waves with 1 empty, but pre made patterns
-    - wind looks ugly
+    - car behaviour, maybe change lanes, different speed & changing speed -> front & brake lights and indicators?
     - straßenschilder (über straße und seite) + laternen (light source!)
     - meshes runterkriegen!! tris sind egal und dann light_sources (tris bis 10mio ok)
         main problem are objects: 35 (objects per side) * 12 (chunks per side) * 2 (sides) = 840 Meshes!!
@@ -44,13 +46,13 @@ DriveScene:
     LATER:
     - bioms (+ biom specific surrounding models)
     - street has curves and ground not always being flat -> little elevations
-    - kreuzungen mit kreuzverkehr + ampeln
 
 GarageScene:
-    - Environment world walls
+    - Environment world walls, maybe timesquare at night model, that your in the middle of a street and all sides are buildings
     - many more car partsr
     - brakes turn as well on tires ...
-    - lightsource in car_lights
-    - car_lights as part
+    - motorhaube
+    - bmw_front_lights as a part for different light shapes
+    - unterbodenbeleuchtung -> probably as a mesh and then same as back_lights and front_lights
     - front of car as part
     - exaust

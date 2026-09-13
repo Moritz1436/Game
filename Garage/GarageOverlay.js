@@ -160,7 +160,7 @@ export class GarageOverlay extends PIXI.Container {
         this._updateBottomRow();
 
         this._resizeHandler = () => this.layout();
-        window.addEventListener("resize", this._resizeHandler);
+        this.app.renderer.on('resize', this._resizeHandler);
 
         this.layout();
     }
@@ -502,7 +502,6 @@ export class GarageOverlay extends PIXI.Container {
                     t.boxRef._updateSwatch(hex);
                 },
                 (metallic, roughness) => {
-                    console.log("Material changed:", metallic, roughness);
                     const t = this.colorPickerTarget;
                     if (!t) return;
                     t.previewMetallic = metallic;
@@ -576,7 +575,7 @@ export class GarageOverlay extends PIXI.Container {
     }
 
     destroy(options) {
-        window.removeEventListener("resize", this._resizeHandler);
+        this.app.renderer.off('resize', this._resizeHandler);
         window.removeEventListener("keydown", this._onKeyDown);
         this.removeMoneyListener();
         super.destroy(options);

@@ -80,7 +80,7 @@ export class NotifScreen extends UIScene {
         if (this.button2) this.panel.addChild(this.button2);
 
         this._resizeHandler = () => this.layout();
-        window.addEventListener("resize", this._resizeHandler);
+        this.app.renderer.on('resize', this._resizeHandler);
 
         this.layout();
     }
@@ -173,6 +173,6 @@ export class NotifScreen extends UIScene {
     }
 
     destroy() {
-        window.removeEventListener("resize", this._resizeHandler);
+        this.app.renderer.off('resize', this._resizeHandler);
     }
 }

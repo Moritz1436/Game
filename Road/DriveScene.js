@@ -19,6 +19,7 @@ import { EnemyCarManager } from "./EnemyCarManager.js";
 import { NotifScreen } from "../NotifScreen.js";
 import { WindEffect } from "./WindEffect.js";
 import { ToastManager } from "../ToastManager.js";
+import { LightManager } from "../Shaders/LightManager.js";
 
 /* Note:
     use https://itch.io/game-assets/free/tag-3d/tag-tree for more models
@@ -239,6 +240,11 @@ export class DriveScene extends UIScene {
         this.debugLayerUI = new PIXI.Container();
         this.debugLayerWorld = new PIXI.Container();
 
+        this.lightManager = new LightManager(app, this.camera, this.debugLayerUI);
+        this.lightIntensity = 40;
+        this.headlightForwardOffset = 0.09;
+        this.holdingS = false;
+
         //between 2 and 5 lanes
         this.laneCount = Math.floor(Math.random() * 4) + 2;
 
@@ -247,7 +253,7 @@ export class DriveScene extends UIScene {
         this.carFollowSpeedX = 7.0;
         this.carFollowSpeedZ = 15.0;
         this.carWidth = RoadManager.laneWidth * 0.8; //world units
-        this.carManager = new CarManager(this.carLayer, globalAssetManager);
+        this.carManager = new CarManager(this.carLayer, globalAssetManager, this.lightManager);
         const playerCarConfig = GAMESTATE.getCurrentCarConfig();
         this.carVisualPos = { x: 0, y: 0, z: this.camPos3dStart.z - this.carZOffset };
         const baseAsset = globalAssetManager.getAssetByName(playerCarConfig.base);
@@ -311,7 +317,8 @@ export class DriveScene extends UIScene {
             this.objectLayer,
             scaledDistance,
             DriveScene.assets,
-            this.laneCount
+            this.laneCount,
+            this.lightManager
         );
 
         this.driveOverlay = new DriveOverlay(app, this.playerCar.properties, cityName, {
@@ -405,6 +412,56 @@ export class DriveScene extends UIScene {
         this.targetSpeed = this.baseSpeed;
     }
 
+    _updateLights() {
+        const rootPiece = this.playerCar.rootPiece;
+        const lights = [];
+
+        const frontLightMesh = rootPiece.getMeshByName("front_lights");
+        if (frontLightMesh) {
+            const baseColorVec4 = frontLightMesh.mesh.shader.resources.uMaterial.uniforms.uBaseColor;
+            const lightColor = [baseColorVec4[0], baseColorVec4[1], baseColorVec4[2]];
+
+            const localLeft = rootPiece._computeLocalCenter(frontLightMesh.rawVertices, "left");
+            const localRight = rootPiece._computeLocalCenter(frontLightMesh.rawVertices, "right");
+
+            if (localLeft && localRight) {
+                // Lichter ein Stück nach vorn versetzen (Modell zeigt lokal in +x)
+                localLeft.x += this.headlightForwardOffset;
+                localRight.x += this.headlightForwardOffset;
+
+                lights.push(
+                    { pos: rootPiece._localToWorld(localLeft), color: lightColor, intensity: this.lightIntensity },
+                    { pos: rootPiece._localToWorld(localRight), color: lightColor, intensity: this.lightIntensity },
+                );
+            }
+        }
+
+        const backLightMesh = rootPiece.getMeshByName("back_lights");
+        if (backLightMesh) {
+            const baseColorVec4 = backLightMesh.mesh.shader.resources.uMaterial.uniforms.uBaseColor;
+            const lightColor = [baseColorVec4[0], baseColorVec4[1], baseColorVec4[2]];
+
+            const localLeft = rootPiece._computeLocalCenter(backLightMesh.rawVertices, "left");
+            const localRight = rootPiece._computeLocalCenter(backLightMesh.rawVertices, "right");
+
+            if (localLeft && localRight) {
+                // Lichter ein Stück nach hinten versetzen (entgegen +x)
+                localLeft.x -= this.headlightForwardOffset;
+                localRight.x -= this.headlightForwardOffset;
+
+                const isBraking = this.currentSpeed > this.targetSpeed + 5 || this.holdingS;
+                const intensity = isBraking ? this.lightIntensity : this.lightIntensity * 0.1;
+
+                lights.push(
+                    { pos: rootPiece._localToWorld(localLeft), color: lightColor, intensity: intensity },
+                    { pos: rootPiece._localToWorld(localRight), color: lightColor, intensity: intensity },
+                );
+            }
+        }
+
+        this.lightManager.setLights(lights);
+    }
+
     async update(ticker) {
         if (this.carStopped) return;
 
@@ -422,6 +479,8 @@ export class DriveScene extends UIScene {
                 return;
             }
         }
+
+        this.holdingS = Input.isKeyDown("KeyS");
         
         if (Input.isKeyDown("KeyW")) {
             this.targetSpeed = this.baseSpeed;
@@ -550,7 +609,7 @@ export class DriveScene extends UIScene {
             this.carManager.hideDebugOutlines();
         }
 
-        this.enemyCarManager.update(dt, !this._sceneEnding);
+        this.enemyCarManager.update(dt, !this._sceneEnding && (!window.DEBUG.enabled || !window.DEBUG.speedHack));
 
         //update mountains
         this.mountains.update();
@@ -593,6 +652,9 @@ export class DriveScene extends UIScene {
         const rpm = 800 + (speed / 300) * 6500;
         this.driveOverlay.setSpeed(speed);
         this.driveOverlay.setRPM(rpm);
+
+        this._updateLights();
+        this.lightManager.update(this.camera.pos3d.z);
 
         const nightFactor = this.mountains.nightFactor;
         this.camera.update(nightFactor);

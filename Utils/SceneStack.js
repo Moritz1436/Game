@@ -63,16 +63,25 @@ export class SceneStack {
         return oldScene;
     }
 
-    static getTopScene() {
+    static getTopScene(topMost = false) {
         if (this.sceneStack.length === 0) {
             return null;
         }
 
-        return this.sceneStack[this.sceneStack.length - 1];
+        if (topMost) {
+            const last = this.sceneStack[this.sceneStack.length - 1];
+            return last.topMost ? last : null;
+        }
+
+        let idx = this.sceneStack.length - 1;
+        while (idx >= 0 && this.sceneStack[idx].topMost) idx--;
+        if (idx < 0) return null;
+
+        return this.sceneStack[idx];
     }
 
-    static getTopSceneName() {
-        const scene = this.getTopScene();
+    static getTopSceneName(topMost = false) {
+        const scene = this.getTopScene(topMost);
 
         if (!scene) {
             return null;

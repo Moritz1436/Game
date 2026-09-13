@@ -43,21 +43,93 @@
             right: 10px;
             transform: translateY(-50%);
 
-            display: flex;
+            display: none;
             flex-direction: column;
-            gap: 4px;
+            gap: 3px;
 
-            background: rgba(0,0,0,0.7);
-            color: #00ff00;
+            background: rgba(0,0,0,0.5);
+            color: #999;
 
-            padding: 8px 12px;
+            padding: 8px 10px;
             border: 1px solid #333;
+            border-radius: 2px;
 
             font-family: 'Courier New', monospace;
-            font-size: 14px;
+            font-size: 20px;
 
             z-index: 9999;
             max-width: 260px;
+        }
+
+        #debugPanel.visible {
+            display: flex;
+        }
+
+        #debugPanel label {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            cursor: pointer;
+        }
+
+        #debugPanel input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            margin: 0;
+        }
+
+        #debugPanel .debugStat {
+            color: #777;
+            font-size: 20px;
+        }
+
+        #debugPanel button {
+            background: rgba(255,255,255,0.08);
+            color: #999;
+            border: 1px solid #333;
+            border-radius: 2px;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            padding: 3px 6px;
+            cursor: pointer;
+        }
+
+        #debugPanel button:hover {
+            background: rgba(255,255,255,0.15);
+            color: #ccc;
+        }
+
+        #mobileBlock {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 24px;
+            box-sizing: border-box;
+
+            background: #0a0a0a;
+            color: #eee;
+
+            font-family: 'Courier New', monospace;
+            z-index: 10000;
+        }
+
+        #mobileBlock h1 {
+            font-size: 20px;
+            margin-bottom: 12px;
+            color: #00ff00;
+        }
+
+        #mobileBlock p {
+            font-size: 15px;
+            line-height: 1.5;
+            max-width: 360px;
+            color: #aaa;
         }
     </style>
 </head>
@@ -68,27 +140,72 @@
 
     <div id="debugPanel">
         <label>
-            DEBUG:
-            <input type="checkbox" id="debugToggle">
-        </label>
-
-        <label>
-            SHOW MESHES:
             <input type="checkbox" id="showMeshesToggle">
+            show meshes
         </label>
 
         <label>
-            SHOW CAR BOUNDS:
             <input type="checkbox" id="showCarBoundsToggle">
+            show car bounds
         </label>
 
-        <div id="fpsCounter">FPS: 0</div>
-        <div id="meshCounter">MESHES: 0</div>
-        <div id="triangleCounter">TRIANGLES: 0</div>
-        <div id="gridMeshTriangles">TRIANGLES: 0</div>
-        <div id="gridMeshes">Grids: 0</div>
+        <label>
+            <input type="checkbox" id="showLightsToggle">
+            show lights
+        </label>
+
+        <label>
+            <input type="checkbox" id="speedToggle">
+            speed hack
+        </label>
+
+        <button id="moneyButton" type="button">+5000 money</button>
+
+        <div id="fpsCounter" class="debugStat">FPS: 0</div>
+        <div id="meshCounter" class="debugStat">MESHES: 0</div>
+        <div id="triangleCounter" class="debugStat">TRIANGLES: 0</div>
+        <div id="gridMeshTriangles" class="debugStat">TRIANGLES: 0</div>
+        <div id="gridMeshes" class="debugStat">Grids: 0</div>
     </div>
 
-    <script type="module" src="main.js"></script>
+    <div id="mobileBlock">
+        <h1>Not available on mobile yet</h1>
+        <p>Currently not available on mobile, but we're working on it soon.</p>
+    </div>
+
+    <script>
+        (function () {
+            const isTouchDevice = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+            const isMobileUA = /Android|iPhone|iPad|iPod|Mobile|Windows Phone/i.test(navigator.userAgent);
+            const isNarrowViewport = Math.min(window.innerWidth, window.innerHeight) < 600;
+
+            const isMobile = isMobileUA || (isTouchDevice && isNarrowViewport);
+
+            if (isMobile) {
+                document.getElementById('gameHolder').style.display = 'none';
+                document.getElementById('debugPanel').style.display = 'none';
+                document.getElementById('mobileBlock').style.display = 'flex';
+            }
+
+            window.__IS_MOBILE__ = isMobile;
+        })();
+    </script>
+
+    <script>
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'F2') {
+                e.preventDefault();
+                const panel = document.getElementById('debugPanel');
+                const nowVisible = panel.classList.toggle('visible');
+                window.DEBUG.enabled = nowVisible;
+            }
+        });
+    </script>
+
+    <script type="module">
+        if (!window.__IS_MOBILE__) {
+            import('./main.js');
+        }
+    </script>
 </body>
 </html>

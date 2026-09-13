@@ -12,7 +12,7 @@ function smoothstep(edge0, edge1, x) {
 // just dont drive through objects, could get ugly lol
 export class ObjectManager {
 
-    constructor(app, camera, layer, distance, assets, lanes) {
+    constructor(app, camera, layer, distance, assets, lanes, lightManager) {
  
         this.app = app;
         this.camera = camera;
@@ -20,6 +20,8 @@ export class ObjectManager {
         this.layer.sortableChildren = true;
         this.assets = assets;
         this.lanes = lanes;
+
+        this.lightManager = lightManager;
  
         this.chunkLength = 500;
  
@@ -221,7 +223,7 @@ export class ObjectManager {
  
             // obj.rotation ist bei Nicht-Haus-Objekten undefined -> ModelInstance
             // faellt dann auf die Standard-Rotation zurueck (wie vorher).
-            obj.instance = new ModelInstance(asset, this.layer, obj.pos3d, obj.scale, obj.rotation);
+            obj.instance = new ModelInstance(asset, this.layer, obj.pos3d, obj.scale, obj.rotation, this.lightManager);
             count++;
         }
     }
@@ -420,7 +422,7 @@ export class ObjectManager {
         const zFar = zNear - segLen;
         const z = isLeft ? zFar : zNear;
 
-        return new ModelInstance(asset, this.layer, { x, y: 0, z }, this.guardRailScale, rotation);
+        return new ModelInstance(asset, this.layer, { x, y: 0, z }, this.guardRailScale, rotation, this.lightManager);
     }
 
     getObjectLOD(type, chunkLOD) {
@@ -488,7 +490,7 @@ export class ObjectManager {
 
         const rotation = isLeft ? IDENTITY_MAT3 : rotationY(Math.PI);
 
-        return new ModelInstance(asset, this.layer, { x, y: 0, z }, this.forestScale, rotation);
+        return new ModelInstance(asset, this.layer, { x, y: 0, z }, this.forestScale, rotation, this.lightManager);
     }
 
     computeTransitionT(chunkZ, isLeft) {

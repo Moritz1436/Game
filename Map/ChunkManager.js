@@ -14,6 +14,8 @@ export class ChunkManager {
         this.pendingKeys = []; // Warteschlange, naechste zuerst
         this._lastCenterCx = null;
         this._lastCenterCy = null;
+        this._lastRadiusX = null;
+        this._lastRadiusY = null;
     }
 
     _loadOneChunk(key) {

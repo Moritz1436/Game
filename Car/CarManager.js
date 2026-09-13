@@ -1,9 +1,10 @@
 import { Car } from "./Car.js";
 
 export class CarManager {
-    constructor(layer, assetManager) {
+    constructor(layer, assetManager, lightManager) {
         this.layer = layer;
         this.assetManager = assetManager;
+        this.lightManager = lightManager;
 
         this.debugLayer = null;
 
@@ -12,7 +13,7 @@ export class CarManager {
     }
 
     spawnPlayerCar(config, pos3d, scale) {
-        this.playerCar = new Car(this.layer, this.assetManager, config, pos3d, scale);
+        this.playerCar = new Car(this.layer, this.assetManager, config, pos3d, scale, this.lightManager);
         if (this.debugLayer != null) {
             this.playerCar.showDebugOutline(this.debugLayer);
         }
@@ -20,7 +21,7 @@ export class CarManager {
     }
 
     spawnEnemyCar(config, pos3d, scale) {
-        const car = new Car(this.layer, this.assetManager, config, pos3d, scale);
+        const car = new Car(this.layer, this.assetManager, config, pos3d, scale, this.lightManager);
         this.enemyCars.push(car);
         if (this.debugLayer != null) {
             car.showDebugOutline(this.debugLayer);

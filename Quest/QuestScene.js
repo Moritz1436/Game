@@ -174,7 +174,7 @@ export class QuestScene extends UIScene {
         }
 
         this._resizeHandler = () => this.layout();
-        window.addEventListener("resize", this._resizeHandler);
+        this.app.renderer.on('resize', this._resizeHandler);
 
         this.layout();
 
@@ -218,59 +218,59 @@ export class QuestScene extends UIScene {
         }
     }
 
-_createQuestRow(quest, isLocked) {
-    const row = new PIXI.Container();
-    row.eventMode = "static";
+    _createQuestRow(quest, isLocked) {
+        const row = new PIXI.Container();
+        row.eventMode = "static";
 
-    const bg = new PIXI.Graphics();
-    row.addChild(bg);
-    row._bg = bg;
+        const bg = new PIXI.Graphics();
+        row.addChild(bg);
+        row._bg = bg;
 
-    const nameText = pixelText(quest.name, 16, COLORS.textLight);
-    nameText.anchor.set(0, 0.5);
-    row.addChild(nameText);
-    row._nameText = nameText;
+        const nameText = pixelText(quest.name, 16, COLORS.textLight);
+        nameText.anchor.set(0, 0.5);
+        row.addChild(nameText);
+        row._nameText = nameText;
 
-    const starsText = pixelText(
-        "\u2605".repeat(quest.difficulty) + "\u2606".repeat(5 - quest.difficulty),
-        14, isLocked ? COLORS.textDim : COLORS.gold
-    );
-    starsText.anchor.set(1, 0.5);
-    row.addChild(starsText);
-    row._starsText = starsText;
+        const starsText = pixelText(
+            "\u2605".repeat(quest.difficulty) + "\u2606".repeat(5 - quest.difficulty),
+            14, isLocked ? COLORS.textDim : COLORS.gold
+        );
+        starsText.anchor.set(1, 0.5);
+        row.addChild(starsText);
+        row._starsText = starsText;
 
-    const descText = pixelText(quest.shortDesc, 12, COLORS.textDim);
-    descText.anchor.set(0, 0);
-    descText.style.wordWrap = true;
-    row.addChild(descText);
-    row._descText = descText;
+        const descText = pixelText(quest.shortDesc, 12, COLORS.textDim);
+        descText.anchor.set(0, 0);
+        descText.style.wordWrap = true;
+        row.addChild(descText);
+        row._descText = descText;
 
-    const rewardText = pixelText(`$${quest.reward}`, 13, isLocked ? COLORS.textDim : COLORS.gold);
-    rewardText.anchor.set(1, 1);
-    row.addChild(rewardText);
-    row._rewardText = rewardText;
+        const rewardText = pixelText(`$${quest.reward}`, 13, isLocked ? COLORS.textDim : COLORS.gold);
+        rewardText.anchor.set(1, 1);
+        row.addChild(rewardText);
+        row._rewardText = rewardText;
 
-    row._clockText = null;
-    const isActiveQuestRow = GAMESTATE.activeQuest?.id === quest.id;
-    if (isActiveQuestRow) {
-        row._clockText = pixelText("\u23F1", 13, COLORS.gold);
-        row._clockText.anchor.set(0, 1);
-        row.addChild(row._clockText);
+        row._clockText = null;
+        const isActiveQuestRow = GAMESTATE.activeQuest?.id === quest.id;
+        if (isActiveQuestRow) {
+            row._clockText = pixelText("\u23F1", 13, COLORS.gold);
+            row._clockText.anchor.set(0, 1);
+            row.addChild(row._clockText);
+        }
+
+        if (isLocked) {
+            row.cursor = "default";
+        } else {
+            row.cursor = "pointer";
+            row.on("pointerover", () => this._redrawRow(row, quest, true, isLocked));
+            row.on("pointerout", () => this._redrawRow(row, quest, false, isLocked));
+            row.on("pointertap", () => this._openQuestDetail(quest));
+        }
+
+        row._quest = quest;
+        row._isLocked = isLocked;
+        return row;
     }
-
-    if (isLocked) {
-        row.cursor = "default";
-    } else {
-        row.cursor = "pointer";
-        row.on("pointerover", () => this._redrawRow(row, quest, true, isLocked));
-        row.on("pointerout", () => this._redrawRow(row, quest, false, isLocked));
-        row.on("pointertap", () => this._openQuestDetail(quest));
-    }
-
-    row._quest = quest;
-    row._isLocked = isLocked;
-    return row;
-}
 
     _redrawRow(row, quest, hovered, isLocked) {
         const bgColor = isLocked ? COLORS.boxBg : (hovered ? COLORS.boxBgHover : COLORS.boxBgSelected);
@@ -530,7 +530,7 @@ _createQuestRow(quest, isLocked) {
     }
 
     destroy() {
-        window.removeEventListener("resize", this._resizeHandler);
+        this.app.renderer.off('resize', this._resizeHandler);
         this.app.canvas.removeEventListener("wheel", this._onWheel);
         this.app.ticker.remove(this._tickerFn);
     }

@@ -14,10 +14,10 @@ const AXES = ['x', 'y', 'z'];
 // ModelInstance.
 export class CarPieceInstance extends ModelInstance {
 
-    constructor(asset, layer, localPos3d = { x: 0, y: 0, z: 0 }, localRot3d = { x: 0, y: 0, z: 0 }, localScale = 1, mirrored = false) {
+    constructor(asset, layer, localPos3d = { x: 0, y: 0, z: 0 }, localRot3d = { x: 0, y: 0, z: 0 }, localScale = 1, mirrored = false, lightManager = null) {
         const baseLocalRotMat = eulerToMat3(localRot3d);
         const localRotMat = mirrored ? mat3Mul(baseLocalRotMat, mirrorZ()) : baseLocalRotMat;
-        super(asset, layer, { ...localPos3d }, localScale, localRotMat);
+        super(asset, layer, { ...localPos3d }, localScale, localRotMat, lightManager);
 
         this.mirrored = mirrored;
         this.localPos3d = { ...localPos3d };

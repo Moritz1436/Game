@@ -1,8 +1,9 @@
 import * as PIXI from "pixi.js";
 import { Object3D } from "../World3D/Object3D.js";
-import { createGpuProjectLitShader } from "../Shaders/GpuProjectLitShader.js";
+import { createGpuProjectLitShader, setPointLights } from "../Shaders/GpuProjectLitShader.js";
 import { createGeometry3D } from "../World3D/Geometry3DUtils.js"
 import { eulerToMat3, IDENTITY_MAT3 } from "../World3D/Utils/Mat3Utils.js";
+import { mat3TransformVec3 } from "../World3D/Utils/Mat3Utils.js";
 
 // Instance of a 3d Model created by an asset, which was loaded by the loader
 // each modelinstance gets its owm PIXI.Container
@@ -17,12 +18,15 @@ export class ModelInstance extends Object3D {
     ///                  parent piece's matrix) OR Euler angles {x,y,z} in
     ///                  radians (converted once, for simple one-off cases
     ///                  like static scenery that never composes rotations).
-    constructor(asset, layer, pos3d, scale = 1, rotation = IDENTITY_MAT3) {
+    constructor(asset, layer, pos3d, scale = 1, rotation = IDENTITY_MAT3, lightManager = null) {
         super(pos3d, { x: 0, y: 0, z: 0 });
 
         this.asset = asset;
         this.scale = scale;
         this.layer = layer;
+
+        this.lightManager = lightManager;
+        if (this.lightManager) this.lightManager.register(this);
 
         this.rotationMatrix = this._resolveRotation(rotation);
         this.modifiers = this._mergeModifiers(asset.modifiers ?? []);
@@ -46,7 +50,8 @@ export class ModelInstance extends Object3D {
             this.meshes.push({
                 name: meshData.name,
                 mesh,
-                geometry
+                geometry,
+                rawVertices: meshData.vertices,
             });
 
             this.layer.addChild(mesh);
@@ -176,6 +181,7 @@ export class ModelInstance extends Object3D {
     }
 
     destroy() {
+        if (this.lightManager) this.lightManager.unregister(this);
 
         for (const m of this.meshes) {
             //Debug count stats
@@ -187,6 +193,55 @@ export class ModelInstance extends Object3D {
         }
 
         this.meshes.length = 0;
+    }
+
+    _computeLocalCenter(rawVertices, side = null) {
+        let sx = 0, sy = 0, sz = 0, count = 0;
+        for (let i = 0; i < rawVertices.length; i += 3) {
+            const x = rawVertices[i], y = rawVertices[i + 1], z = rawVertices[i + 2];
+            if (side === "left" && z > 0) continue;
+            if (side === "right" && z < 0) continue;
+            sx += x; sy += y; sz += z;
+            count++;
+        }
+        if (count === 0) return null;
+        return { x: sx / count, y: sy / count, z: sz / count };
+    }
+
+    _localToWorld(localPos) {
+        const rotated = mat3TransformVec3(this.rotationMatrix, localPos);
+        return {
+            x: this.pos3d.x + rotated.x * this.scale,
+            y: this.pos3d.y + rotated.y * this.scale,
+            z: this.pos3d.z + rotated.z * this.scale,
+        };
+    }
+
+    getMeshWorldPosition(name, split = false) {
+        const entry = this.getMeshByName(name);
+        if (!entry) {
+            console.warn(`ModelInstance: no mesh named "${name}" on asset "${this.asset.name}"`);
+            return null;
+        }
+
+        if (!split) {
+            const local = this._computeLocalCenter(entry.rawVertices);
+            return local ? this._localToWorld(local) : null;
+        }
+
+        const localLeft = this._computeLocalCenter(entry.rawVertices, "left");
+        const localRight = this._computeLocalCenter(entry.rawVertices, "right");
+
+        return {
+            left: localLeft ? this._localToWorld(localLeft) : null,
+            right: localRight ? this._localToWorld(localRight) : null,
+        };
+    }
+
+    setPointLights(lights) {
+        for (const m of this.meshes) {
+            setPointLights(m.mesh.shader, lights);
+        }
     }
 
 }

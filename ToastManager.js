@@ -65,7 +65,7 @@ export class ToastManager extends UIScene {
         this.uiScene.on("pointerdown", this._onPointerDown);
 
         this._resizeHandler = () => this.layout();
-        window.addEventListener("resize", this._resizeHandler);
+        this.app.renderer.on('resize', this._resizeHandler);
 
         this._tickerFn = () => this._tick();
         app.ticker.add(this._tickerFn);
@@ -475,7 +475,7 @@ export class ToastManager extends UIScene {
     }
 
     destroy() {
-        window.removeEventListener("resize", this._resizeHandler);
+        this.app.renderer.off('resize', this._resizeHandler);
         this.app.ticker.remove(this._tickerFn);
         this.uiScene.off("pointerdown", this._onPointerDown);
         this.uiScene.destroy({ children: true });

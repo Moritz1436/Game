@@ -62,6 +62,8 @@ void main() {
     vValid = validDepth ? 1.0 : 0.0;
 }`;
 
+const MAX_POINT_LIGHTS = 4;
+
 const fragmentSrc = `
 precision mediump float;
 
@@ -76,11 +78,18 @@ uniform float uMetallic;
 uniform float uRoughness;
 
 uniform highp vec3 uCamPos;
-uniform vec3 uLightDir;   // normalized, points TOWARD the light
+uniform vec3 uLightDir;
 uniform float uAmbient;
 uniform float uDiffuseStrength;
 uniform float uSpecularStrength;
 uniform float uNightFactor;
+
+// NEU: flache float-Arrays statt vec3-Arrays (PIXI's UniformGroup
+// unterstuetzt keine vec3<f32>[N] Arrays - nur skalare/Vektor-Basistypen).
+// 3 Floats pro Licht fuer Position, 3 fuer Farbe, 1 fuer Intensity.
+uniform float uPointLightPos[${MAX_POINT_LIGHTS * 3}];
+uniform float uPointLightColor[${MAX_POINT_LIGHTS * 3}];
+uniform float uPointLightIntensity[${MAX_POINT_LIGHTS}];
 
 void main() {
     if (vValid < 0.999) {
@@ -92,31 +101,47 @@ void main() {
     vec3 albedo = texLinear * uBaseColor.rgb;
 
     vec3 N = normalize(vWorldNormal);
-    vec3 L = uLightDir;
     vec3 V = normalize(uCamPos - vWorldPos);
-    vec3 H = normalize(L + V);
 
-    float NdotL = max(dot(N, L), 0.0);
-    float NdotH = max(dot(N, H), 0.0);
-
-    // Stylized (non-physical) metallic/roughness approximation:
-    // - metallic: little/no diffuse, specular tinted by albedo instead of white
-    // - roughness: controls highlight size/sharpness (low = tight & bright, high = wide & dim)
     float shininess = mix(128.0, 4.0, uRoughness);
-    float spec = pow(NdotH, shininess) * uSpecularStrength;
 
     vec3 diffuseColor = albedo * (1.0 - uMetallic);
     vec3 specularColor = mix(vec3(1.0), albedo, uMetallic);
+
+    vec3 L = uLightDir;
+    vec3 H = normalize(L + V);
+    float NdotL = max(dot(N, L), 0.0);
+    float NdotH = max(dot(N, H), 0.0);
+    float spec = pow(NdotH, shininess) * uSpecularStrength;
 
     vec3 color = albedo * uAmbient
                 + diffuseColor * NdotL * uDiffuseStrength
                 + specularColor * spec;
 
+    // NEU: vec3 manuell aus den flachen Arrays zusammensetzen
+    for (int i = 0; i < ${MAX_POINT_LIGHTS}; i++) {
+        vec3 lightPos = vec3(uPointLightPos[i*3], uPointLightPos[i*3+1], uPointLightPos[i*3+2]);
+        vec3 lightColor = vec3(uPointLightColor[i*3], uPointLightColor[i*3+1], uPointLightColor[i*3+2]);
+
+        vec3 toLight = lightPos - vWorldPos;
+        float dist = length(toLight);
+        vec3 Lp = toLight / max(dist, 0.0001);
+
+        float attenuation = uPointLightIntensity[i] / (1.0 + dist * dist * 0.0008);
+
+        vec3 Hp = normalize(Lp + V);
+        float NdotLp = max(dot(N, Lp), 0.0);
+        float NdotHp = max(dot(N, Hp), 0.0);
+        float specP = pow(NdotHp, shininess) * uSpecularStrength;
+
+        color += lightColor * attenuation * (diffuseColor * NdotLp + specularColor * specP);
+    }
+
     vec3 nightTint = vec3(0.55, 0.62, 0.85);
     float nightDarken = mix(1.0, 0.35, uNightFactor);
     color = mix(color, color * nightTint, uNightFactor * 0.6) * nightDarken;
 
-    color = pow(color, vec3(1.0 / 2.2)); // gamma correction
+    color = pow(color, vec3(1.0 / 2.2));
 
     gl_FragColor = vec4(color, tex.a * uBaseColor.a);
 }`;
@@ -127,6 +152,11 @@ export function createGpuProjectLitShader(texture, objPos, objScale, materialInf
     const baseColor = materialInfo.baseColor ?? [1, 1, 1, 1];
     const metallic = materialInfo.metallic ?? 1.0;
     const roughness = materialInfo.roughness ?? 1.0;
+
+    // NEU: flache Float32Arrays statt vec3-Arrays
+    const pointLightPos = new Float32Array(MAX_POINT_LIGHTS * 3);
+    const pointLightColor = new Float32Array(MAX_POINT_LIGHTS * 3);
+    const pointLightIntensity = new Float32Array(MAX_POINT_LIGHTS);
 
     return new Shader({
         glProgram: litProjectProgram,
@@ -144,6 +174,38 @@ export function createGpuProjectLitShader(texture, objPos, objScale, materialInf
                 uRoughness: { value: roughness, type: 'f32' },
             }),
             uLighting: lightingUniforms,
+            // NEU: flache f32-Arrays - jeweils type: 'f32' mit passender
+            // Array-Laenge als value
+            uPointLights: new UniformGroup({
+                uPointLightPos: { value: pointLightPos, type: 'f32', size: MAX_POINT_LIGHTS * 3 },
+                uPointLightColor: { value: pointLightColor, type: 'f32', size: MAX_POINT_LIGHTS * 3 },
+                uPointLightIntensity: { value: pointLightIntensity, type: 'f32', size: MAX_POINT_LIGHTS },
+            }),
         }
     });
 }
+
+export function setPointLights(shader, lights) {
+    const posArr = shader.resources.uPointLights.uniforms.uPointLightPos;
+    const colorArr = shader.resources.uPointLights.uniforms.uPointLightColor;
+    const intensityArr = shader.resources.uPointLights.uniforms.uPointLightIntensity;
+
+    for (let i = 0; i < MAX_POINT_LIGHTS; i++) {
+        const light = lights[i];
+        if (light) {
+            posArr[i * 3 + 0] = light.pos.x;
+            posArr[i * 3 + 1] = light.pos.y;
+            posArr[i * 3 + 2] = light.pos.z;
+
+            colorArr[i * 3 + 0] = light.color[0];
+            colorArr[i * 3 + 1] = light.color[1];
+            colorArr[i * 3 + 2] = light.color[2];
+
+            intensityArr[i] = light.intensity;
+        } else {
+            intensityArr[i] = 0;
+        }
+    }
+}
+
+export { MAX_POINT_LIGHTS };

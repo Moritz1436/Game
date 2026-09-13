@@ -13,6 +13,7 @@ import { mat3Mul, rotationY } from "../World3D/Utils/Mat3Utils.js";
 import { LoadingScreen } from "../LoadingScreen.js";
 import { GAMESTATE } from "../GameState.js";
 import { globalAssetManager, MAP_SEED } from "../GlobalAssets.js";
+import { LightManager } from "../Shaders/LightManager.js";
 
 /* Car Piece Data
     Todo: LOD
@@ -76,7 +77,7 @@ export class GarageScene extends UIScene {
             );
         }
         this._onResize();
-        window.addEventListener("resize", this._onResize);
+        this.app.renderer.on('resize', this._onResize);
 
         this._onWheel = this.onCameraWheel.bind(this);
         window.addEventListener("wheel", this._onWheel, { passive: false });
@@ -84,13 +85,18 @@ export class GarageScene extends UIScene {
         this.groundLayer = new PIXI.Container();
         this.carLayer = new PIXI.Container();
         this.debugLayer = new PIXI.Container();
+        this.debugLayerUI = new PIXI.Container();
+
+        this.lightManager = new LightManager(app, this.camera, this.debugLayerUI);
+        this.lightIntensity = 20;
+        this.headlightForwardOffset = 0.09;
 
         this.ground = this.createGround();
         this.aabbDebug = null;
         
         this.carConfig = new CarConfigState(GAMESTATE.getCurrentCarConfig());
 
-        this.carManager = new CarManager(this.carLayer, globalAssetManager);
+        this.carManager = new CarManager(this.carLayer, globalAssetManager, this.lightManager);
         const config = this.carConfig.exportConfig();
         
         const scale = 30;
@@ -128,6 +134,7 @@ export class GarageScene extends UIScene {
 
         //Background -> Foreground
         this.uiScene.addChild(this.dragLayer);
+        this.uiScene.addChild(this.debugLayerUI);
         this.uiScene.addChild(this.overlay);
 
         app.ticker.add(this.update, this);
@@ -152,6 +159,53 @@ export class GarageScene extends UIScene {
         }
 
         this.car.setPosition({ x: this.car.pos3d.x, y: newY, z: this.car.pos3d.z });
+    }
+
+    _updateLights() {
+        const rootPiece = this.car.rootPiece;
+        const lights = [];
+
+        const frontLightMesh = rootPiece.getMeshByName("front_lights");
+        if (frontLightMesh) {
+            const baseColorVec4 = frontLightMesh.mesh.shader.resources.uMaterial.uniforms.uBaseColor;
+            const lightColor = [baseColorVec4[0], baseColorVec4[1], baseColorVec4[2]];
+
+            const localLeft = rootPiece._computeLocalCenter(frontLightMesh.rawVertices, "left");
+            const localRight = rootPiece._computeLocalCenter(frontLightMesh.rawVertices, "right");
+
+            if (localLeft && localRight) {
+                // Lichter ein Stück nach vorn versetzen (Modell zeigt lokal in +x)
+                localLeft.x += this.headlightForwardOffset;
+                localRight.x += this.headlightForwardOffset;
+
+                lights.push(
+                    { pos: rootPiece._localToWorld(localLeft), color: lightColor, intensity: this.lightIntensity },
+                    { pos: rootPiece._localToWorld(localRight), color: lightColor, intensity: this.lightIntensity },
+                );
+            }
+        }
+
+        const backLightMesh = rootPiece.getMeshByName("back_lights");
+        if (backLightMesh) {
+            const baseColorVec4 = backLightMesh.mesh.shader.resources.uMaterial.uniforms.uBaseColor;
+            const lightColor = [baseColorVec4[0], baseColorVec4[1], baseColorVec4[2]];
+
+            const localLeft = rootPiece._computeLocalCenter(backLightMesh.rawVertices, "left");
+            const localRight = rootPiece._computeLocalCenter(backLightMesh.rawVertices, "right");
+
+            if (localLeft && localRight) {
+                // Lichter ein Stück nach hinten versetzen (entgegen +x)
+                localLeft.x -= this.headlightForwardOffset;
+                localRight.x -= this.headlightForwardOffset;
+
+                lights.push(
+                    { pos: rootPiece._localToWorld(localLeft), color: lightColor, intensity: this.lightIntensity },
+                    { pos: rootPiece._localToWorld(localRight), color: lightColor, intensity: this.lightIntensity },
+                );
+            }
+        }
+
+        this.lightManager.setLights(lights);
     }
 
     update(ticker) {
@@ -201,11 +255,14 @@ export class GarageScene extends UIScene {
             const turntableMat = mat3Mul(rotationY(this.autoRotateAngle), this.car.baseRot);
             this.car.setRotation(turntableMat);
         }
+
+        this._updateLights();
+        this.lightManager.update(this.camera.pos3d.z);
     }
 
     destroy() {
         this.onCameraDragEnd();
-        window.removeEventListener("resize", this._onResize);
+        this.app.renderer.off('resize', this._onResize);
         window.removeEventListener("wheel", this._onWheel);
         this.app.ticker.remove(this.update, this);
 
@@ -284,7 +341,7 @@ export class GarageScene extends UIScene {
             this.app,
             this.camera,
             this.groundLayer,
-            null,
+            this.debugLayerUI,
             1,
             1,
             PIXI.Texture.WHITE,

@@ -6,7 +6,7 @@ import { GAMESTATE } from "./GameState.js";
 import { LoadingScreen } from "./LoadingScreen.js";
 import { GLOBAL_MANIFEST, loadGlobalAssetEntry, MAP_SEED } from "./GlobalAssets.js";
 import { ToastManager } from "./ToastManager.js";
-
+import { TutorialScene } from "./TutorialScene.js";
 
 /* Note:
     Meshes and triangles are currently only created and destroyed in these classes:
@@ -16,6 +16,7 @@ import { ToastManager } from "./ToastManager.js";
 window.DEBUG = {
     enabled: false,
     showMeshes: false,
+    showLights: false,
     meshes: 0,
     gridMeshes: 0,
     gridMeshTriangles: 0,
@@ -58,14 +59,7 @@ window.DEBUG = {
 
 
 function setupDebug(app) {
-    const debugToggle = document.getElementById("debugToggle");
     const showMeshesToggle = document.getElementById("showMeshesToggle");
-
-    debugToggle.checked = false;
-    debugToggle.addEventListener("change", (e) => {
-        window.DEBUG.enabled = e.target.checked;
-    });
-
     showMeshesToggle.checked = false;
     showMeshesToggle.addEventListener("change", (e) => {
         window.DEBUG.showMeshes = e.target.checked;
@@ -77,14 +71,62 @@ function setupDebug(app) {
         window.DEBUG.showCarBounds = e.target.checked;
     });
 
+    const showLightsToggle = document.getElementById("showLightsToggle");
+    showLightsToggle.checked = false;
+    showLightsToggle.addEventListener("change", (e) => {
+        window.DEBUG.showLights = e.target.checked;
+    });
+
+    const moneyButton = document.getElementById("moneyButton");
+    moneyButton.addEventListener("click", () => {
+        GAMESTATE.addMoney(5000);
+    });
+
+    const speedToggle = document.getElementById("speedToggle");
+    speedToggle.checked = false;
+    let lastSpeed = GAMESTATE.getCurrentCarConfig()?.properties?.speed?.value ?? 80;
+    speedToggle.addEventListener("change", (e) => {
+        window.DEBUG.speedHack = e.target.checked;
+        const config = GAMESTATE.getCurrentCarConfig();
+        if (config && config.properties && config.properties.speed) {
+            if (window.DEBUG.speedHack) {
+                lastSpeed = config.properties.speed.value;
+                config.properties.speed.value = 250;
+            } else {
+                config.properties.speed.value = lastSpeed;
+            }
+        }
+        const driveScene = SceneStack.getTopScene(false);
+        if (driveScene && driveScene.label === "DriveScene") {
+            if (window.DEBUG.speedHack) {
+                driveScene.baseSpeed = 2500;
+                driveScene.targetSpeed = 2500;
+            } else {
+                driveScene.baseSpeed = lastSpeed * 10;
+                driveScene.targetSpeed = lastSpeed * 10;
+            }
+        }
+    });
+
     const fpsCounter = document.getElementById("fpsCounter");
     const meshCounter = document.getElementById("meshCounter");
     const triangleCounter = document.getElementById("triangleCounter");
     const gridMeshTriangleCounter = document.getElementById("gridMeshTriangles")
     const gridMeshCounter = document.getElementById("gridMeshes")
 
+    const fpsHistory = [];
+    const FPS_AVG_WINDOW = 3000;
+
     app.ticker.add(() => {
-        fpsCounter.textContent = `FPS: ${Math.round(app.ticker.FPS)}`;
+        const now = performance.now();
+        fpsHistory.push({ time: now, fps: app.ticker.FPS });
+
+        while (fpsHistory.length > 0 && now - fpsHistory[0].time > FPS_AVG_WINDOW) {
+            fpsHistory.shift();
+        }
+
+        const avgFps = fpsHistory.reduce((sum, entry) => sum + entry.fps, 0) / fpsHistory.length;
+        fpsCounter.textContent = `FPS: ${Math.round(avgFps)}`;
 
         meshCounter.textContent = `MESHES: ${window.DEBUG.meshes}`;
         triangleCounter.textContent = `TRIANGLES: ${window.DEBUG.triangles}`;
@@ -92,7 +134,6 @@ function setupDebug(app) {
         gridMeshTriangleCounter.textContent = `GRIDTRIANGLES: ${window.DEBUG.gridMeshTriangles}`;
     });
 }
-
 
 async function boot(app) {
     const loadingScreen = new LoadingScreen(app);
@@ -127,7 +168,16 @@ async function boot(app) {
 
     ToastManager.init(app);
 
-    // Start Scene
-    const mapScene = await MapScene.create(app, MAP_SEED, loadingScreen);
-    SceneStack.pushScene(mapScene);
+    const tutScene = new TutorialScene(app, {
+        onSkip: async () => {
+            const mapScene = await MapScene.create(app, MAP_SEED);
+            SceneStack.pushScene(mapScene);
+        },
+        onComplete: async () => {
+            const mapScene = await MapScene.create(app, MAP_SEED);
+            SceneStack.pushScene(mapScene);
+        },
+    });
+
+    SceneStack.pushScene(tutScene);
 }

@@ -33,12 +33,13 @@ function rgbaToHex(rgba) {
 // }
 export class Car extends Object3D {
 
-    constructor(layer, assetManager, config, pos3d, scale = 30) {
+    constructor(layer, assetManager, config, pos3d, scale = 30, lightManager = null) {
         super(pos3d, { x: 0, y: 0, z: 0 });
 
         this.layer = layer;
         this.assetManager = assetManager;
         this.scale = scale;
+        this.lightManager = lightManager;
 
         // properties: {
         //     speed: { value: 80, increase: 5, level: 0, maxLevel: 20, cost: 1000 },
@@ -88,14 +89,14 @@ export class Car extends Object3D {
         if (this.rootPiece) this.rootPiece.destroy();
 
         const baseAsset = this.assetManager.getAssetByName(config.base);
-        this.rootPiece = new CarPieceInstance(baseAsset, this.layer, { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }, this.scale);
+        this.rootPiece = new CarPieceInstance(baseAsset, this.layer, { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }, this.scale, false, this.lightManager);
         
         for (const [socketName, partName] of Object.entries(config.parts ?? {})) {
             const partAsset = this.assetManager.getAssetByName(partName);
             if (!partAsset) continue;
             
             const mirrored = MIRRORED_SOCKETS.has(socketName.toLowerCase());
-            const piece = new CarPieceInstance(partAsset, this.layer, { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }, 1, mirrored);
+            const piece = new CarPieceInstance(partAsset, this.layer, { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }, 1, mirrored, this.lightManager);
             this.rootPiece.attachChild(socketName, piece);
         }
 
@@ -195,7 +196,8 @@ export class Car extends Object3D {
                 { x: 0, y: 0, z: 0 },
                 { x: 0, y: 0, z: 0 },
                 1,
-                mirrored
+                mirrored,
+                this.lightManager
             );
 
             const attached = this.rootPiece.attachChild(

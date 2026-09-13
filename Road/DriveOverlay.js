@@ -49,11 +49,11 @@ export class DriveOverlay extends PIXI.Container {
         this.layout();
 
         this._resizeHandler = () => this.layout();
-        window.addEventListener("resize", this._resizeHandler);
+        this.app.renderer.on('resize', this._resizeHandler);
     }
 
     destroy(options) {
-        window.removeEventListener("resize", this._resizeHandler);
+        this.app.renderer.off('resize', this._resizeHandler);
         if (this._onTutorialKeyDown) {
             window.removeEventListener("keydown", this._onTutorialKeyDown);
         }

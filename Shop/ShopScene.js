@@ -81,11 +81,11 @@ export class ShopScene extends UIScene {
         this.layout();
 
         this._resizeHandler = () => this.layout();
-        window.addEventListener("resize", this._resizeHandler);
+        this.app.renderer.on('resize', this._resizeHandler);
     }
 
     destroy(options) {
-        window.removeEventListener("resize", this._resizeHandler);
+        this.app.renderer.off('resize', this._resizeHandler);
         this.gamestateListener();
         if (this._reelTicker) this.app.ticker.remove(this._reelTicker);
         clearTimeout(this._statusTimeout);
